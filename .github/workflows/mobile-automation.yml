@@ -81,8 +81,99 @@ jobs:
           path: test-results/
           retention-days: 30
 
-# iOS Infrastructure (Ready for future use)
-#  ios-test:
-#    runs-on: macos-latest
-#    steps:
-#      ...
+  ios-smoke:
+    name: iOS Smoke (Simulator)
+    runs-on: macos-14 # Apple Silicon; matches .app arm64 slice
+    # Independent of Android job — runs in parallel, doesn't block on its result.
+
+    env:
+      IOS_SIM_NAME: "iPhone 15"
+      IOS_SIM_RUNTIME: "iOS-17-5"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Install Appium XCUITest driver
+        run: npx appium driver install xcuitest
+        env:
+          APPIUM_HOME: ${{ github.workspace }}
+
+      - name: Download iOS Application (.app.zip → .app)
+        run: |
+          mkdir -p apps
+          curl -L "https://github.com/taqelah/demo-app/releases/download/v1.0.0/DemoApp-v1.0.0-ios.app.zip" -o apps/DemoApp-v1.0.0-ios.app.zip
+          cd apps && unzip -q -o DemoApp-v1.0.0-ios.app.zip && mv Runner.app DemoApp-v1.0.0.app
+          ls -la DemoApp-v1.0.0.app/ | head -5
+
+      - name: Boot iOS Simulator
+        id: boot-sim
+        run: |
+          # Pick a preinstalled iPhone 15 runtime on the macos-14 runner.
+          # `simctl list` gives us the UDID for whichever pair we ask for.
+          UDID=$(xcrun simctl list devices "${IOS_SIM_NAME}" available --json \
+            | python3 -c "import sys,json; d=json.load(sys.stdin)['devices']; \
+              [print(dev['udid']) for runtime,devs in d.items() if 'iOS' in runtime for dev in devs if dev['name']=='${IOS_SIM_NAME}'][:1]" \
+            | head -1)
+          if [ -z "$UDID" ]; then
+            echo "No preinstalled ${IOS_SIM_NAME}; creating one"
+            UDID=$(xcrun simctl create "${IOS_SIM_NAME}" "com.apple.CoreSimulator.SimDeviceType.iPhone-15" "com.apple.CoreSimulator.SimRuntime.${IOS_SIM_RUNTIME}")
+          fi
+          echo "Simulator UDID: $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          echo "udid=$UDID" >> $GITHUB_OUTPUT
+
+      - name: Pre-install app to Simulator
+        run: xcrun simctl install "${{ steps.boot-sim.outputs.udid }}" apps/DemoApp-v1.0.0.app
+
+      - name: Start Appium Server
+        run: npx appium &
+        env:
+          APPIUM_HOME: ${{ github.workspace }}
+
+      - name: Wait for Appium ready
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:4723/status > /dev/null; then
+              echo "Appium up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "Appium did not come up"; exit 1
+
+      - name: Run iOS Smoke
+        env:
+          CI: "true"
+          DEVICE_COUNT: "1"
+          DEVICE_0_PLATFORM: "ios"
+          DEVICE_0_NAME: "iPhone 15"
+          DEVICE_0_UDID: ${{ steps.boot-sim.outputs.udid }}
+          DEVICE_0_WDA_PORT: "8100"
+          DEVICE_0_SETTLE_PAUSE: "1500"
+        run: npm run test:smoke
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-ios
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-ios
+          path: test-results/
+          retention-days: 30

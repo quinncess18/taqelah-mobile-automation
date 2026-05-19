@@ -4,7 +4,7 @@ Defines the test coverage and verification strategy for the Taqelah mobile appli
 
 **Current scope:** Android emulators — Pixel 8 (API 35, local) + Pixel Tablet (API 35, local) for full coverage; CI runs Pixel 6 profile at API 34 (Android 14, google_apis target). 82 TCs across 17 sections verified on local Pixel 8 + Tablet (§0 Smoke, §1–§14 unit modules, §15 Checkout, §16 Regression). §0 Smoke runs first as a foundation gate (~30s), §16 Regression runs last as a deep cross-module E2E. CI on API 34 with `retries: 2` to absorb emulator flake.
 
-**Roadmap:** iOS platform support (iPhone 15 Pro, iPad) post-June workshop.
+**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5) for §0 smoke; expansion to full module coverage pending selector iteration. Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
 
 > Status legend: ✅ Verified · ⚠️ Under investigation · ⏳ Pending · — Not applicable
 

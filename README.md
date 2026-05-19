@@ -29,7 +29,7 @@ Detailed coverage, strategy, and per-device status in [TEST_PLAN.md](./TEST_PLAN
 
 
 ## 🚀 Key Features
-- **Cross-Platform-Ready Architecture:** Codebase designed for both Android and iOS targets. Currently verified on Android emulators (Pixel 8, Pixel Tablet); iOS device profiles (iPhone 15 Pro, iPad) scaffolded for post-workshop integration.
+- **Cross-Platform Architecture:** Codebase runs on both Android (Pixel 8, Pixel Tablet) and iOS (Simulator). Android suite is fully verified across all 17 sections; iOS Simulator runs §0 smoke on GHA `macos-14` and is being expanded module-by-module.
 - **Safe-Zone Gestures:** Device-agnostic logic using a **30% width safe zone**, avoiding all system handles and split-view triggers on wide screens.
 - **Cross-Platform POMs:** Intelligent Page Objects using the "Ternary Selector" pattern to bridge Android and iOS Flutter TestKeys.
 - **Sequential Cross-Device Execution:** `workers: 1` in `playwright.config.js` runs each device project (Pixel 8, Pixel Tablet) sequentially — avoids Appium port collisions and UIAutomator2 session crashes.
@@ -58,7 +58,7 @@ Detailed coverage, strategy, and per-device status in [TEST_PLAN.md](./TEST_PLAN
 - **Mobile Driver:** [Appium 2.x](https://appium.io/)
 - **Client Library:** [WebdriverIO 8.x](https://webdriver.io/)
 - **Android Driver:** `uiautomator2` (installed)
-- **iOS Driver:** `xcuitest` (planned — pending integration after June workshop)
+- **iOS Driver:** `xcuitest` (installed; CI runs §0 smoke on iOS Simulator via GHA `macos-14`)
 
 ## 🚦 Getting Started
 
