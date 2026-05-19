@@ -9,7 +9,7 @@ on:
 
 jobs:
   android-test:
-    name: Android Regression
+    name: Android (Emulator)
     runs-on: ubuntu-22.04 # CRITICAL: Bypasses the AppArmor bugs in ubuntu-24.04
 
     steps:
