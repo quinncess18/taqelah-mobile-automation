@@ -104,7 +104,9 @@ jobs:
         run: npm install
 
       - name: Install Appium XCUITest driver
-        run: npx appium driver install xcuitest
+        # Pin to xcuitest@7 — latest 8.x targets Appium 3.x-rc and conflicts
+        # with the project's Appium 2.19 (which Android depends on).
+        run: npx appium driver install --source=npm appium-xcuitest-driver@7
         env:
           APPIUM_HOME: ${{ github.workspace }}
 

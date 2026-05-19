@@ -7,6 +7,7 @@ blob-report/
 apps/*.apk
 apps/*.aab
 apps/*.app
+apps/*.app.zip
 apps/*.ipa
 
 # Environment / Secrets
