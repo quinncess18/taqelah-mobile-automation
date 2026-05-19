@@ -29,10 +29,21 @@ test.describe('Catalog Module - Landing UI Master Check', () => {
   /** @type {CartPage} */ let cartPage;
 
   async function fullResetAndLogin(driver) {
-    await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
-    await driver.pause(2500);
-    await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
-    await driver.pause(1500);
+    if (loginPage.isAndroid) {
+      await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
+      await driver.pause(2500);
+      await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
+      await driver.pause(1500);
+    } else {
+      // iOS has no `pm clear` equivalent — terminate + relaunch the app via
+      // XCUITest mobile extensions. Session uses `noReset: true` so this
+      // doesn't wipe app data, but it returns the UI to the cold-launch
+      // Login screen which is all the cascade replay needs.
+      await driver.execute('mobile: terminateApp', { bundleId: loginPage.appPackage });
+      await driver.pause(1500);
+      await driver.execute('mobile: launchApp', { bundleId: loginPage.appPackage });
+      await driver.pause(1500);
+    }
 
     await loginPage.waitForPageLoad();
     await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);

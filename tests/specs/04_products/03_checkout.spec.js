@@ -10,6 +10,32 @@ const { ShippingInfoPage } = require('../../pages/ShippingInfoPage');
 const { ReviewOrderPage } = require('../../pages/ReviewOrderPage');
 const { ThankYouPage } = require('../../pages/ThankYouPage');
 const checkoutData = require('../../data/checkout-scenarios.json');
+const fs = require('fs');
+const path = require('path');
+
+// CI-only diagnostic dump for the K01 seed-cart cold-render flake. When
+// `detailPage.waitForPageLoad()` fails after tapping a grid card, capture:
+//   1. The grid's currently-visible product names (was the tap on a real card?).
+//   2. The post-tap page source XML (did we navigate? did Detail render at all?).
+//   3. A screenshot (visual confirmation of where we landed).
+// Three K01 hard-fails in 24h with identical "Add to Cart not found after 60s"
+// signature — need ground truth before guessing fixes. Gated on CI to avoid
+// noise on local runs.
+async function dumpK01SeedDiagnostic(driver, label, pickName) {
+  if (!process.env.CI) return;
+  try {
+    const dir = path.join('test-results', 'diagnostics');
+    fs.mkdirSync(dir, { recursive: true });
+    const stamp = Date.now();
+    const png = await driver.takeScreenshot();
+    fs.writeFileSync(path.join(dir, `k01-seed-${label}-${stamp}.png`), Buffer.from(png, 'base64'));
+    const xml = await driver.getPageSource();
+    fs.writeFileSync(path.join(dir, `k01-seed-${label}-${stamp}.xml`), xml);
+    console.log(`[CK-seed/diag] dumped ${label} for pick="${pickName}" @ ${stamp}`);
+  } catch (e) {
+    console.log(`[CK-seed/diag] dump failed: ${e?.message || e}`);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // §15 Checkout — chains off §14's empty-cart end-state.
@@ -167,8 +193,29 @@ test.describe('Products Module — Checkout (§15)', () => {
 
       const expectedBadge = i + 1;
       console.log(`[CK-seed] add ${i + 1}/${itemCount}: tap "${pick.name}"`);
+
+      if (process.env.CI) {
+        try {
+          const cards = await driver.$$(gridPage.clickableItems);
+          const names = [];
+          for (const c of cards) {
+            const d = await c.getAttribute(gridPage.attrName).catch(() => null);
+            if (d) names.push(d.split('\n')[0]);
+          }
+          console.log(`[CK-seed/diag] pre-tap grid (${names.length} cards): ${names.join(' | ')}`);
+        } catch (e) {
+          console.log(`[CK-seed/diag] pre-tap grid scan failed: ${e?.message || e}`);
+        }
+      }
+
       await pick.el.click();
-      await detailPage.waitForPageLoad();
+      try {
+        await detailPage.waitForPageLoad();
+      } catch (err) {
+        console.log(`[CK-seed/diag] waitForPageLoad failed after tap on "${pick.name}": ${err?.message || err}`);
+        await dumpK01SeedDiagnostic(driver, `wait-fail-i${i + 1}`, pick.name);
+        throw err;
+      }
       console.log(`[CK-seed] add ${i + 1}/${itemCount}: Detail ready, tapping Add to Cart`);
       await detailPage.addToCart();
       await detailPage.waitForSnackbarDismissed();
