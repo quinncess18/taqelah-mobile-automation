@@ -13,13 +13,18 @@ class LoginPage extends BasePage {
     super(driver);
     
     // Core Selectors (Cross-Platform Flutter TestKeys)
-    this.usernameField = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.EditText").instance(0)' 
-      : '~username-field';
-    
-    this.passwordField = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.EditText").instance(1)' 
-      : '~password-field';
+    // iOS: Flutter Key('login_username_field') doesn't propagate to
+    // accessibilityIdentifier, so we match by `name` (which Appium's `~`
+    // finder uses as fallback). Verified via diagnostic XML from run
+    // 26080218853 — both TextFields surface as XCUIElementTypeTextField
+    // with name="Username"/"Password" from the InputDecoration labelText.
+    this.usernameField = this.isAndroid
+      ? 'android=new UiSelector().className("android.widget.EditText").instance(0)'
+      : '~Username';
+
+    this.passwordField = this.isAndroid
+      ? 'android=new UiSelector().className("android.widget.EditText").instance(1)'
+      : '~Password';
     
     this.loginButton = this.isAndroid 
       ? 'android=new UiSelector().className("android.widget.Button").description("Login")' 
