@@ -152,42 +152,16 @@ const test = base.extend({
 
       console.warn(`[recovery] session dead after failed test "${testInfo.title}"; reloading`);
       const reloadT0 = Date.now();
-      let reloadOk = false;
       try {
         // Bound the reload too — on a hosed AVD it can never complete.
         await Promise.race([
           driver.reloadSession(),
           new Promise((_, reject) => setTimeout(() => reject(new Error('reload timeout')), 60000)),
         ]);
-        reloadOk = true;
         console.log(`[recovery] session reloaded in ${Date.now() - reloadT0}ms`);
       } catch (reloadErr) {
         console.error(`[recovery] reloadSession failed after ${Date.now() - reloadT0}ms: ${reloadErr.message}`);
       }
-
-      // Post-reload readiness gate. `reloadSession` resolves once the new
-      // session is created, but UIA2 instrumentation can still be mid-boot
-      // — observed CI run 26036415476: retries #1/#2 fired 0–1ms and hit
-      // `socket hang up` / `instrumentation process is not running`. Probe
-      // `getPageSource` with retries until the new session actually answers,
-      // so the next test's beforeEach runs against a live driver.
-      if (!reloadOk) return;
-      const probeDeadline = Date.now() + 30000;
-      let probes = 0;
-      while (Date.now() < probeDeadline) {
-        probes++;
-        try {
-          await Promise.race([
-            driver.getPageSource(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('probe timeout')), 5000)),
-          ]);
-          console.log(`[recovery] session responsive after ${probes} probe(s)`);
-          return;
-        } catch {
-          await new Promise((r) => setTimeout(r, 1500));
-        }
-      }
-      console.warn(`[recovery] session still unresponsive after ${probes} probes; releasing anyway`);
     },
     { auto: true },
   ],
