@@ -51,8 +51,8 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 
 | Module | iPhone 15 | Notes |
 |---|---|---|
-| §0 Smoke | ⚠️ | In progress. Login title (`~DemoApp`) + Login button (`~Login`) verified. Username/Password fields fixed (`~Username` / `~Password`) commit c354e1d. Next: drawer logout, Catalog Landing's `shopAllBtn`. |
-| §1 Auth (01) | ⏳ | Inherits LoginPage selectors from §0. Adds error-message + password-toggle iOS branches (currently `~error-message` / `~toggle-password` — unverified; predicate/class-chain likely needed for toggle). |
+| §0 Smoke | ✅ | Verified green on CI run 26081190412 (2.9 min). Selectors: title `~DemoApp`, fields `~Username`/`~Password`, login `~Login`, Landing's `~Shop All`, drawer `~Logout` — all via Appium's `~` finder name-fallback. Full TC-SM01 round-trip (launch → login → Landing → logout → Login) passes. |
+| §1 Auth (01) | ⚠️ | In progress. Inherits §0's LoginPage selectors. demoCredentials fixed (`~Demo Credentials`). verifyUsername branched to use iOS `value` attribute. passwordToggle / mainError / usernameFieldError / passwordFieldError iOS branches still unverified — will be fixed as their TCs surface diagnostics. |
 | §2 Catalog (02) | ⏳ | First cross-screen work. CatalogLandingPage + categories iOS branches all unverified. |
 | §3 Nav Main (03/01) | ⏳ | Drawer iOS branches unverified (logout button surfaces in §0 first). |
 | §3 Gestures (03/02) | ⏳ | Pinch/swipe should work via XCUITest W3C actions; canvas pixel sampling may need tuning for Retina (2× / 3× scale). |

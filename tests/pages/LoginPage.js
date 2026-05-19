@@ -51,9 +51,9 @@ class LoginPage extends BasePage {
       ? 'android=new UiSelector().className("android.widget.Button").description("Logout")' 
       : '~Logout';
 
-    this.demoCredentials = this.isAndroid 
-      ? 'android=new UiSelector().description("Demo Credentials")' 
-      : '~demo-credentials';
+    this.demoCredentials = this.isAndroid
+      ? 'android=new UiSelector().description("Demo Credentials")'
+      : '~Demo Credentials';
 
     // Universal Truths (Demo Credentials)
     this.defaultUser = 'emma@demoapp.com';
@@ -129,10 +129,13 @@ class LoginPage extends BasePage {
 
   /**
    * Universally verifies the content of the username field.
+   * Android exposes typed text via getText(); iOS XCUIElementTypeTextField
+   * exposes it via the `value` attribute (same pattern used in
+   * verifyPasswordMasked / verifyPasswordPlaintext).
    */
   async verifyUsername(expectedText) {
     const el = await this.driver.$(this.usernameField);
-    const text = await el.getText();
+    const text = this.isAndroid ? await el.getText() : await el.getAttribute('value');
     if (text !== expectedText) {
       throw new Error(`Username verification failed. Expected "${expectedText}", got "${text}"`);
     }

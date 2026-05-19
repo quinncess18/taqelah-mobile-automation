@@ -153,7 +153,7 @@ jobs:
           done
           echo "Appium did not come up"; exit 1
 
-      - name: Run iOS Smoke
+      - name: Run iOS Modules (Smoke + Auth)
         env:
           CI: "true"
           DEVICE_COUNT: "1"
@@ -162,7 +162,11 @@ jobs:
           DEVICE_0_UDID: ${{ steps.boot-sim.outputs.udid }}
           DEVICE_0_WDA_PORT: "8100"
           DEVICE_0_SETTLE_PAUSE: "1500"
-        run: npm run test:smoke
+        # Single Playwright invocation across both modules — smoke leaves
+        # the app on Login, §1 Auth's beforeAll inherits that state.
+        # Modules are added incrementally as iOS selectors are verified
+        # (see TEST_PLAN.md → iOS Coverage Matrix).
+        run: npx playwright test tests/specs/00_smoke tests/specs/01_auth
 
       - name: Upload Report
         uses: actions/upload-artifact@v4
