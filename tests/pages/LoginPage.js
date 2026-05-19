@@ -34,9 +34,13 @@ class LoginPage extends BasePage {
     // iOS: Flutter exposes form-validator errors as XCUIElementTypeStaticText
     // siblings of the field, with the message string as both name and label.
     // Verified via diagnostic XML from run 26083703919 (TC-N01).
+    // iOS renders mainError as a multi-line node:
+    //   "Invalid username or password.\nHint: emma@demoapp.com / 10203040"
+    // The `~` finder is exact-match on name/identifier, so it can't catch
+    // this. NSPredicate BEGINSWITH mirrors Android's descriptionStartsWith.
     this.mainError = this.isAndroid
       ? 'android=new UiSelector().descriptionStartsWith("Invalid username or password")'
-      : '~Invalid username or password';
+      : '-ios predicate string:name BEGINSWITH "Invalid username or password"';
 
     this.usernameFieldError = this.isAndroid
       ? 'android=new UiSelector().description("Please enter your username")'
