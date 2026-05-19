@@ -1,6 +1,8 @@
 const { test: base } = require('@playwright/test');
 const { remote } = require('webdriverio');
 const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 const { APPIUM_SERVER, APK_PATH, IPA_PATH, DEVICES } = require('../config/devices.config');
 
 /**
@@ -127,6 +129,54 @@ const test = base.extend({
    * carry over. App state survives because the original session uses
    * `noReset: true`.
    */
+  /**
+   * Auto-fixture: on iOS test failure in CI, dump page source + screenshot to
+   * test-results/diagnostics/ so we can audit the live a11y tree against our
+   * POM selectors. Best-effort: never throws, never breaks downstream
+   * recovery. Runs BEFORE _autoSessionRecovery (declared first → teardown
+   * runs LIFO → diagnostic captures state, then recovery decides whether to
+   * reload). iOS-only + CI-only gated so local runs and Android stay silent.
+   */
+  _iosFailureDiagnostic: [
+    async ({ driver }, use, testInfo) => {
+      await use();
+      if (testInfo.status === testInfo.expectedStatus) return;
+      if (!process.env.CI) return;
+      if (!driver.isIOS) return;
+
+      const slug = testInfo.title.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+      const outDir = path.resolve(process.cwd(), 'test-results', 'diagnostics');
+      try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
+
+      // Page source (XML) — primary artifact for selector iteration.
+      try {
+        const src = await Promise.race([
+          driver.getPageSource(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('source timeout')), 10000)),
+        ]);
+        const srcPath = path.join(outDir, `${slug}-source.xml`);
+        fs.writeFileSync(srcPath, src, 'utf8');
+        console.log(`[ios-diag] wrote ${srcPath} (${src.length} bytes)`);
+      } catch (err) {
+        console.warn(`[ios-diag] page source dump failed: ${err.message}`);
+      }
+
+      // Screenshot — secondary; helps verify the correct screen was reached.
+      try {
+        const png = await Promise.race([
+          driver.takeScreenshot(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('screenshot timeout')), 10000)),
+        ]);
+        const pngPath = path.join(outDir, `${slug}-screenshot.png`);
+        fs.writeFileSync(pngPath, Buffer.from(png, 'base64'));
+        console.log(`[ios-diag] wrote ${pngPath}`);
+      } catch (err) {
+        console.warn(`[ios-diag] screenshot failed: ${err.message}`);
+      }
+    },
+    { auto: true },
+  ],
+
   _autoSessionRecovery: [
     async ({ driver }, use, testInfo) => {
       await use();

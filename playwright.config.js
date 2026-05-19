@@ -32,8 +32,11 @@ module.exports = defineConfig({
   use: {
     /* Base timeout for Appium commands */
     actionTimeout: 30000,
-    trace: 'retain-on-failure',
-    screenshot: 'on',
+    // No `trace` / `screenshot` — those hook into Playwright's BrowserContext,
+    // which doesn't exist in this Appium-driven suite. Mobile diagnostics are
+    // captured by `_iosFailureDiagnostic` in fixtures/appFixture.js (page
+    // source XML + screenshot on iOS+CI failures, written to
+    // test-results/diagnostics/).
   },
 
   /* 
