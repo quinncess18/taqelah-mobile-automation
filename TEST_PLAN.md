@@ -36,6 +36,45 @@ Each module's supported Android API range is an explicit contract. A new module 
 - Bumping CI's API level → audit this matrix. Any module's lower bound that now exceeds CI's API is a hard skip; lower bound that now exceeds local is a regression risk.
 - Migration history: CI was on API 29 prior to 2026-05-11; Notifications could not run there. Migration to API 34 unblocked Notifications and required tuning in Permissions (back-to-back dialog wait), Gestures (canvas sampling), Form (toast timing) — see CLAUDE.md.
 
+## iOS Coverage Matrix
+
+Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Specs are shared cross-platform (one POM per screen, selectors branch via `this.isAndroid` / `this.isIOS`); the work per module is selector verification against the live a11y tree, not new spec files.
+
+**Platform contract:**
+- **Min iOS:** 17.5 (the runtime preinstalled on `macos-14` GHA runners; `xcrun simctl list devices` confirms availability).
+- **Device:** iPhone 15 Simulator. iPad target pending — added once iPhone coverage stabilizes to avoid double-iterating selectors.
+- **Driver:** Appium XCUITest 7.x (pinned for Appium 2.19 server compatibility — see `mobile-automation.yml`).
+- **App binary:** `apps/DemoApp-v1.0.0.app/` (Simulator build from `taqelah/demo-app` release v1.0.0; universal x86_64+arm64, `iphonesimulator` SDK, no provisioning profile). Real-device path (BrowserStack/Sauce) parked until a device-signed `.ipa` is published.
+- **Selector strategy:** Flutter `Key('X')` does NOT propagate to iOS `accessibilityIdentifier`. Reliable iOS selectors are `~<name>` (matches `accessibilityIdentifier` first, falls back to `name`/`label`), `-ios predicate string:...`, or `-ios class chain:...`. Predicates verified against diagnostic XML dumps (`_iosFailureDiagnostic` fixture in `fixtures/appFixture.js`).
+
+> Status legend: ✅ Verified · ⚠️ In progress · ⏳ Pending · ⏭ Skipped (iOS-incompatible)
+
+| Module | iPhone 15 | Notes |
+|---|---|---|
+| §0 Smoke | ⚠️ | In progress. Login title (`~DemoApp`) + Login button (`~Login`) verified. Username/Password fields fixed (`~Username` / `~Password`) commit c354e1d. Next: drawer logout, Catalog Landing's `shopAllBtn`. |
+| §1 Auth (01) | ⏳ | Inherits LoginPage selectors from §0. Adds error-message + password-toggle iOS branches (currently `~error-message` / `~toggle-password` — unverified; predicate/class-chain likely needed for toggle). |
+| §2 Catalog (02) | ⏳ | First cross-screen work. CatalogLandingPage + categories iOS branches all unverified. |
+| §3 Nav Main (03/01) | ⏳ | Drawer iOS branches unverified (logout button surfaces in §0 first). |
+| §3 Gestures (03/02) | ⏳ | Pinch/swipe should work via XCUITest W3C actions; canvas pixel sampling may need tuning for Retina (2× / 3× scale). |
+| §3 WebView (03/03) | ⏳ | WKWebView vs Android WebView — content-only assertions (Example Domain text) should port. |
+| §3 Dialogs (03/04) | ⏳ | iOS Alert / ActionSheet have different a11y types than Android dialog widgets. Expect significant branch divergence. |
+| §3 Form (03/05) | ⏳ | TextField positional `instance()` selectors don't exist on iOS — rebuild via `~labelText` matches. |
+| §3 Permissions (03/06) | ⏭ | iOS permission dialogs are system-level (springboard alerts), fundamentally different from Android runtime permissions. Port required, not adapt. |
+| §3 Notifications (03/07) | ⏭ | iOS notification model + permission UX differs; Simulator handles APNS differently. Defer. |
+| §3 Tabs (03/08) | ⏳ | Compose-style pager — iOS equivalent should expose tabs via `XCUIElementTypeTabBar` or similar. |
+| §3 Camera (03/09) | ⏭ | iOS Simulator has no camera. Stub or skip via runtime probe. |
+| §3 Location (03/10) | ⏳ | Use `xcrun simctl set <udid> location lat,lng` to inject fixes. iOS location-permission dialog is a separate spec branch. |
+| §3 Dark Mode (03/11) | ⏳ | iOS dark mode toggles via system Appearance setting; in-app switch should still work. Pixel sampling tolerances may differ. |
+| §4 Products (04/01) | ⏳ | Detail page + add-to-cart. Snackbar equivalent on iOS is `XCUIElementTypeOther` overlay — different selector pattern. |
+| §4 Cart (04/02) | ⏳ | Chains off §4 Products. iOS rotation handling not needed (orientation lock is Android-specific). |
+| §4 Checkout (04/03) | ⏳ | Pure UI; should port cleanly once §4 Products is green. |
+| §16 Regression | ⏳ | Last; depends on §1–§14 being green on iOS. |
+
+**Operating contract for iOS:**
+- Selector iteration is gated by the `_iosFailureDiagnostic` fixture — every iOS test failure on CI leaves `test-results/diagnostics/<slug>-source.xml` + `-screenshot.png`. **Always** verify a proposed iOS selector against fresh XML before pushing, the same way the Android suite verifies against `dumps/*.xml`.
+- When expanding from 3 modules to the wider matrix, upgrade the diagnostic fixture to multi-checkpoint dumps (XML at every `waitForPageLoad`, not just on failure) to reduce CI round-trips.
+- ⏭ modules: when a TC is iOS-incompatible, use `test.skip(this.isIOS, '<reason>')` at spec entry — same pattern as Android's tablet `test.skip(width > 1200, ...)`.
+
 ## 0. Smoke (foundation check)
 
 **Spec:** `tests/specs/00_smoke/01_smoke.spec.js`. Runs **first** in the suite (~30–40s). If smoke fails, the app is fundamentally broken and there's no point running the 30+ minute unit suite below. Deliberately narrow scope: login + first-render + logout. No cart, no checkout — those are regression (§16).

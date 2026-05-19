@@ -17,40 +17,48 @@ class CatalogLandingPage extends BasePage {
       ? 'android=new UiSelector().className("android.widget.Button").instance(1)' 
       : '~cart-icon';
     
+    // iOS selectors below are verified against diagnostic XML from run
+    // 26080595543 — Catalog Landing exposes each element with its visible
+    // text as both `name` and `label`. Appium's `~` finder falls back to
+    // `name` when accessibilityIdentifier is empty, so multi-line content
+    // works the same way it does on Android with `description(...)`.
+    // (cartBtn iOS selector unchanged — no cart icon visible in the dumped
+    // Landing XML; will fix when Cart entry is exercised by a TC.)
+
     // Hero Section (Combined multi-line string from UI dump)
-    this.heroBanner = this.isAndroid 
-      ? 'android=new UiSelector().description("New Collection\nExplore the latest trends in women\'s fashion")' 
-      : '~hero-banner';
-    
-    this.shopAllBtn = this.isAndroid 
-      ? 'android=new UiSelector().description("Shop All")' 
-      : '~shop-all';
-    
+    this.heroBanner = this.isAndroid
+      ? 'android=new UiSelector().description("New Collection\nExplore the latest trends in women\'s fashion")'
+      : '~New Collection\nExplore the latest trends in women\'s fashion';
+
+    this.shopAllBtn = this.isAndroid
+      ? 'android=new UiSelector().description("Shop All")'
+      : '~Shop All';
+
     // Category Headers
     this.sectionHeader = this.isAndroid
       ? 'android=new UiSelector().description("Shop by Category")'
-      : '~section-header-category';
+      : '~Shop by Category';
 
-    this.viewAllCategoriesBtn = this.isAndroid 
-      ? 'android=new UiSelector().description("View All")' 
-      : '~view-all-categories';
-    
+    this.viewAllCategoriesBtn = this.isAndroid
+      ? 'android=new UiSelector().description("View All")'
+      : '~View All';
+
     // Category Cards (Exact multi-line strings as buttons)
-    this.categoryCasual = this.isAndroid 
-      ? 'android=new UiSelector().description("Casual\nEveryday comfort & style\n8 items")' 
-      : '~category-casual';
-    
-    this.categoryEvening = this.isAndroid 
-      ? 'android=new UiSelector().description("Evening\nElegant gowns & formal wear\n8 items")' 
-      : '~category-evening';
-    
-    this.categoryParty = this.isAndroid 
-      ? 'android=new UiSelector().description("Party\nCocktail & party dresses\n8 items")' 
-      : '~category-party';
-    
-    this.categoryBoho = this.isAndroid 
-      ? 'android=new UiSelector().description("Boho\nFree-spirited & artistic\n8 items")' 
-      : '~category-boho';
+    this.categoryCasual = this.isAndroid
+      ? 'android=new UiSelector().description("Casual\nEveryday comfort & style\n8 items")'
+      : '~Casual\nEveryday comfort & style\n8 items';
+
+    this.categoryEvening = this.isAndroid
+      ? 'android=new UiSelector().description("Evening\nElegant gowns & formal wear\n8 items")'
+      : '~Evening\nElegant gowns & formal wear\n8 items';
+
+    this.categoryParty = this.isAndroid
+      ? 'android=new UiSelector().description("Party\nCocktail & party dresses\n8 items")'
+      : '~Party\nCocktail & party dresses\n8 items';
+
+    this.categoryBoho = this.isAndroid
+      ? 'android=new UiSelector().description("Boho\nFree-spirited & artistic\n8 items")'
+      : '~Boho\nFree-spirited & artistic\n8 items';
   }
 
   async waitForPageLoad() {
