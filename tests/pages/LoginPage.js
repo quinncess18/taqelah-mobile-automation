@@ -31,21 +31,27 @@ class LoginPage extends BasePage {
       : '~Login';
     
     // Error Message Selectors
-    this.mainError = this.isAndroid 
-      ? 'android=new UiSelector().descriptionStartsWith("Invalid username or password")' 
-      : '~error-message';
-    
-    this.usernameFieldError = this.isAndroid 
-      ? 'android=new UiSelector().description("Please enter your username")' 
-      : '~username-error';
-    
-    this.passwordFieldError = this.isAndroid 
-      ? 'android=new UiSelector().description("Please enter your password")' 
-      : '~password-error';
-    
-    this.passwordToggle = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.EditText").instance(1).childSelector(new UiSelector().className("android.widget.Button"))' 
-      : '~toggle-password';
+    // iOS: Flutter exposes form-validator errors as XCUIElementTypeStaticText
+    // siblings of the field, with the message string as both name and label.
+    // Verified via diagnostic XML from run 26083703919 (TC-N01).
+    this.mainError = this.isAndroid
+      ? 'android=new UiSelector().descriptionStartsWith("Invalid username or password")'
+      : '~Invalid username or password';
+
+    this.usernameFieldError = this.isAndroid
+      ? 'android=new UiSelector().description("Please enter your username")'
+      : '~Please enter your username';
+
+    this.passwordFieldError = this.isAndroid
+      ? 'android=new UiSelector().description("Please enter your password")'
+      : '~Please enter your password';
+
+    // iOS: the suffix-icon toggle is an unnamed XCUIElementTypeButton sibling
+    // of the SecureTextField. Login is the only OTHER button on this screen
+    // and it has a name, so the unnamed visible Button is unambiguous.
+    this.passwordToggle = this.isAndroid
+      ? 'android=new UiSelector().className("android.widget.EditText").instance(1).childSelector(new UiSelector().className("android.widget.Button"))'
+      : '-ios predicate string:type == "XCUIElementTypeButton" AND label == "" AND visible == 1';
     
     this.logoutBtn = this.isAndroid 
       ? 'android=new UiSelector().className("android.widget.Button").description("Logout")' 
