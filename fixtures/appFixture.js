@@ -72,6 +72,12 @@ const test = base.extend({
         'appium:automationName': 'XCUITest',
         'appium:wdaLocalPort': device.wdaLocalPort,
         'appium:bundleId': 'com.taqelah.demoApp', // Typical Flutter iOS bundle
+        // Force the software keyboard to open even when the host Mac's hardware
+        // keyboard is "connected" to the Simulator. Without this, XCUITest's
+        // setValue() bypasses the soft keyboard and Flutter's TextField
+        // controller never receives the text — N02/N03 surface "Please enter
+        // your username/password" validator errors despite filled fields.
+        'appium:connectHardwareKeyboard': false,
         ...(IPA_PATH ? { 'appium:app': IPA_PATH } : {}),
       };
 
