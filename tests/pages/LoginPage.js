@@ -47,11 +47,14 @@ class LoginPage extends BasePage {
       : '~Please enter your password';
 
     // iOS: the suffix-icon toggle is an unnamed XCUIElementTypeButton sibling
-    // of the SecureTextField. Login is the only OTHER button on this screen
-    // and it has a name, so the unnamed visible Button is unambiguous.
+    // of the SecureTextField. The element has no `name`, `label`, or `value`
+    // attributes at all — they're absent, not empty-string. NSPredicate treats
+    // missing string attributes as `nil`, so we match `name == nil`. The
+    // Login button has name="Login" and every keyboard button has a name
+    // (shift / Done / dictation / a-z), so this is unambiguous.
     this.passwordToggle = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.EditText").instance(1).childSelector(new UiSelector().className("android.widget.Button"))'
-      : '-ios predicate string:type == "XCUIElementTypeButton" AND label == "" AND visible == 1';
+      : '-ios predicate string:type == "XCUIElementTypeButton" AND name == nil AND visible == 1';
     
     this.logoutBtn = this.isAndroid 
       ? 'android=new UiSelector().className("android.widget.Button").description("Logout")' 
@@ -153,18 +156,33 @@ class LoginPage extends BasePage {
    * Hardened for Keyboard, Toolbar, and Stylus input methods.
    */
   async fillCredentials(username, password) {
+    // iOS: setValue() writes directly to the field's accessibility `value`
+    // attribute without routing through the keystroke pipeline, so Flutter's
+    // TextEditingController never sees the text and Form.validate() reports
+    // both fields empty (TC-N02/N03 dumps from run 26088525706 confirm).
+    // addValue() types char-by-char through EditableText's keyboard listener,
+    // which DOES update the controller. Android uses UiAutomator2's IME
+    // injection so setValue is fine there.
+    const typeInto = async (el, text) => {
+      if (this.isAndroid) {
+        await el.setValue(text);
+      } else {
+        await el.addValue(text);
+      }
+    };
+
     if (username !== null) {
       await this.clearField(this.usernameField);
       const userEl = await this.driver.$(this.usernameField);
       await userEl.click(); // Force focus for Stylus/Toolbar
-      await userEl.setValue(username); // setValue is more robust for OS buffers
+      await typeInto(userEl, username);
     }
 
     if (password !== null) {
       await this.clearField(this.passwordField);
       const passEl = await this.driver.$(this.passwordField);
       await passEl.click(); // Force focus
-      await passEl.setValue(password);
+      await typeInto(passEl, password);
     }
 
     const { width } = await this.driver.getWindowRect();

@@ -196,7 +196,10 @@ class BasePage {
     if (this.isAndroid) {
       await this.driver.execute('mobile: shell', { command: 'input', args: ['keyevent', '3'] });
     } else {
-      await this.driver.backgroundApp(-1); 
+      // WDIO 8/9 removed the legacy `driver.backgroundApp(n)` method; use the
+      // XCUITest mobile extension instead. `seconds: -1` backgrounds the app
+      // indefinitely (we re-foreground via `deviceForeground` ourselves).
+      await this.driver.execute('mobile: backgroundApp', { seconds: -1 });
     }
   }
 
