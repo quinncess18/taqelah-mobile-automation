@@ -83,8 +83,13 @@ class LoginPage extends BasePage {
     const { width } = await this.driver.getWindowRect();
     if (width > 1200) await this.resetToTop();
     await this.waitForDisplayed(this.title);
-    console.log(`[L01] login title visible at +${Date.now() - t0}ms (width=${width})`);
-    await this.driver.pause(1000);
+    // On a cold boot the AppBar title paints well before the form's EditText
+    // fields land in the a11y tree. Anchoring only on the title (then a flat
+    // pause) let callers race the field render and fail single-shot isVisible
+    // checks. Wait for the username field itself — that's what every caller
+    // asserts next, and it self-scales from fast local boots to slow CI.
+    await this.waitForDisplayed(this.usernameField);
+    console.log(`[L01] login form visible at +${Date.now() - t0}ms (width=${width})`);
   }
 
   /**

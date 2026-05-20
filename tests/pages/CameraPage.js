@@ -162,6 +162,24 @@ class CameraPage extends BasePage {
   }
 
   /**
+   * Wait up to `timeout` for the native permission dialog and return whether it
+   * appeared. Use this — NOT the single-shot isDialogDisplayed — when asserting
+   * the dialog showed after a cold/fresh screen entry. On a fresh Camera entry
+   * the OS dialog can lag the Flutter permission request by 1-2s, so a
+   * single-shot isVisible races it (TC-CM05 flaked at 190ms on a clean Pixel 8
+   * run, passed at 2.2s on rerun). isDialogDisplayed stays single-shot for the
+   * fast leftover-dialog guard in acceptCameraAndAudio where waiting is wrong.
+   */
+  async waitForDialogDisplayed(timeout = 10000) {
+    try {
+      await this.waitForDialog(timeout);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Accept the Camera permission flow — taps "While using the app" on the
    * Camera dialog, then on the back-to-back Audio dialog. Both dialogs use
    * the same PermissionController layout.

@@ -133,7 +133,9 @@ test.describe('Navigation - Camera Suite — Denied Path (TC-CM05-CM07)', () => 
   });
 
   test('TC-CM05: should show "Camera permission denied" + "Open Settings" after a single dialog deny', async () => {
-    expect(await cameraPage.isDialogDisplayed()).toBe(true);
+    // Wait (don't single-shot) for the OS dialog — on fresh entry it lags the
+    // Flutter permission request by 1-2s. Single-shot isVisible flaked here.
+    expect(await cameraPage.waitForDialogDisplayed(10000)).toBe(true);
     await cameraPage.denyCamera();
     await cameraPage.waitForDeniedState();
 

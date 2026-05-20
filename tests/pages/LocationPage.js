@@ -268,23 +268,70 @@ class LocationPage extends BasePage {
    *
    * Returns the new total visible entry count for the caller to assert.
    */
+  /**
+   * Race a driver call against a hard timeout. A hung UIA2 command (most
+   * notably getPageSource, which has no internal timeout) would otherwise
+   * block until Playwright's 180s test budget fires — long enough to starve
+   * and crash the AVD's instrumentation, after which even reloadSession()
+   * comes back dead and the failure cascades into every downstream spec.
+   *
+   * The setTimeout race does NOT cancel the underlying WDIO request; it just
+   * frees this test thread so the cycle can fail fast and the fixture's
+   * session recovery can reload a still-alive AVD. That's the whole point —
+   * convert an unbounded hang into a bounded, catchable throw.
+   */
+  async _withTimeout(promise, ms, label) {
+    let timer;
+    const guard = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`[LocationPage] ${label} hung >${ms}ms`)), ms);
+    });
+    try {
+      return await Promise.race([promise, guard]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async cycleStartStop({ maxAttempts = 2, budgetMs = 30000 } = {}) {
     const deadline = Date.now() + budgetMs;
     // Use the newest entry's key (not count) to detect a successful insert:
     // once the screen fold is full, adding a new entry pushes the oldest
     // off-viewport, leaving the visible count unchanged. The newest-key
-    // always changes on a successful insert because timestamps are unique.
-    const before = await this.readVisibleHistory();
+    // always changes on a successful insert because the injected coords are
+    // jittered per attempt (below), so the key varies independent of the
+    // second-granularity timestamp.
+    const before = await this._withTimeout(this.readVisibleHistory(), 15000, 'readVisibleHistory(before)');
     const beforeKey = before[0]?.key ?? null;
+    const beforeLen = before.length;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       if (Date.now() > deadline) {
         throw new Error(`[LocationPage] cycleStartStop exceeded budget ${budgetMs}ms after ${attempt - 1} attempt(s); newest key unchanged at ${beforeKey}. Likely GPS mock not producing fixes on this device.`);
       }
-      await this.tapStartTracking();
-      await this.tapStopTracking();
-      const after = await this.readVisibleHistory();
-      const afterKey = after[0]?.key ?? null;
-      if (afterKey && afterKey !== beforeKey) return after.length;
+      // NOTE: do NOT re-inject a fresh GPS fix here. The app logs exactly one
+      // history entry per Start/Stop session *only while the location is
+      // static*. A fix that changes mid-dwell (the system provider can take
+      // seconds to propagate an injected coordinate) gets logged as a SECOND
+      // entry, which breaks TC-LO05's "exactly 1 entry after one cycle"
+      // contract (surfaced as LO05 Expected 1 / Received 2). The single
+      // static warmup fix from gotoLocationFresh is sufficient; entries across
+      // cycles stay distinct via their per-second timestamps.
+      await this._withTimeout(this.tapStartTracking(), 25000, 'tapStartTracking');
+      await this._withTimeout(this.tapStopTracking(), 20000, 'tapStopTracking');
+      // Poll for the insert to register. A single immediate read races the
+      // a11y-tree update: the entry has landed in the app but getPageSource
+      // returns the pre-insert XML, so the key looks unchanged and the old
+      // code spuriously retried — doing a SECOND Start/Stop that inserted a
+      // SECOND entry. Harmless for LO04 (asserts ≥6) but broke LO05 (asserts
+      // exactly 1 → got 2). Wait up to ~5s for either a key change (fold
+      // full, oldest scrolled off) or a length increase (fold not yet full)
+      // before concluding the cycle was a genuine GPS no-op and retrying.
+      const settleDeadline = Date.now() + 5000;
+      while (Date.now() < settleDeadline) {
+        const after = await this._withTimeout(this.readVisibleHistory(), 15000, 'readVisibleHistory(after)');
+        const afterKey = after[0]?.key ?? null;
+        if ((afterKey && afterKey !== beforeKey) || after.length > beforeLen) return after.length;
+        await this.driver.pause(500);
+      }
       console.log(`[LocationPage] cycleStartStop attempt ${attempt}/${maxAttempts} did not insert an entry (newest key unchanged: ${beforeKey}); retrying`);
     }
     return before.length;

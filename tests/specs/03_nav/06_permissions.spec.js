@@ -78,6 +78,14 @@ test.describe('Navigation - Permissions Suite (TC-P01-P04)', () => {
     // Camera recovery: Request again → Audio → "Only this time" → "Granted"
     await permsPage.tapRequest(permsPage.cameraRequestBtn);
     await permsPage.acceptOneTime();
+    // Camera re-init is ASYNC: after Audio is granted the app reopens the camera
+    // HAL and the status flips "Camera init error" → "Granted" only once the
+    // preview is live. On a cold-boot AVD that first open is slow, so a
+    // single-shot check here snapshots the transient error state (the local
+    // P02 flake — verified manually 2026-05-20: status reaches "Granted" once
+    // the preview renders). Wait for it (mirrors the Location block below) then
+    // assert the actual value.
+    await permsPage.waitForPermissionStatus(permsPage.cameraEntry, 'Granted');
     expect(await permsPage.getPermissionStatus(permsPage.cameraEntry)).toBe('Granted');
 
     // ── Location: Request → "While using the app" ──
@@ -114,7 +122,10 @@ test.describe('Navigation - Permissions Suite (TC-P01-P04)', () => {
     await permsPage.tapRequest(permsPage.storageRequestBtn);
 
     // Verify Camera and Location statuses BEFORE scrolling (scrolling can push
-    // elements off the accessibility tree on API 29 / CI emulators)
+    // elements off the accessibility tree on API 29 / CI emulators).
+    // Re-entry re-opens the camera preview, so Camera also re-inits async here —
+    // wait for "Granted" before asserting (same race as the recovery step above).
+    await permsPage.waitForPermissionStatus(permsPage.cameraEntry, 'Granted');
     expect(await permsPage.getPermissionStatus(permsPage.cameraEntry)).toBe('Granted');
     expect(await permsPage.getPermissionStatus(permsPage.locationEntry)).toBe('Granted');
 
@@ -156,6 +167,9 @@ test.describe('Navigation - Permissions Suite (TC-P01-P04)', () => {
     await permsPage.acceptWhileUsing();
     console.log('[P03] camera: accept Audio (While using)');
     await permsPage.acceptWhileUsing();
+    // Camera re-init is async — wait for "Granted" before snapshotting (same
+    // cold-HAL race fixed in P02). The log still captures the settled value.
+    await permsPage.waitForPermissionStatus(permsPage.cameraEntry, 'Granted');
     const cameraAfter = await permsPage.getPermissionStatus(permsPage.cameraEntry);
     console.log(`[P03] camera status after grant: "${cameraAfter}"`);
     expect(cameraAfter).toBe('Granted');
@@ -198,6 +212,8 @@ test.describe('Navigation - Permissions Suite (TC-P01-P04)', () => {
     await permsPage.tapRequest(permsPage.locationRequestBtn);
     await permsPage.tapRequest(permsPage.storageRequestBtn);
 
+    // Re-entry re-opens the camera preview → async re-init again; wait first.
+    await permsPage.waitForPermissionStatus(permsPage.cameraEntry, 'Granted');
     const cameraPersist = await permsPage.getPermissionStatus(permsPage.cameraEntry);
     const locationPersist = await permsPage.getPermissionStatus(permsPage.locationEntry);
     console.log(`[P03] persisted statuses (pre-scroll): camera="${cameraPersist}" location="${locationPersist}"`);

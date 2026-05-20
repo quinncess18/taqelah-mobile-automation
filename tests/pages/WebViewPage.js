@@ -107,12 +107,16 @@ class WebViewPage extends BasePage {
    * (e.g. heavy SPAs) cannot be verified this way without enabling
    * WEBVIEW context (requires app-side WebContentsDebuggingEnabled).
    * @param {string} text - Page text expected after load (e.g. "Example Domain")
+   * @param {number} timeout - ms to wait. Default 25s: this gates on a real
+   *   network fetch (example.com over the emulator NAT) + WebView paint + the
+   *   text landing in the a11y tree, not a local render. The inherited 10s
+   *   default was too tight — TC-W02 flaked at 12.8s on a cold/slow run.
    */
-  async waitForPageContent(text) {
+  async waitForPageContent(text, timeout = 25000) {
     const selector = this.isAndroid
       ? `android=new UiSelector().text("${text}")`
       : `~${text}`;
-    await this.waitForDisplayed(selector);
+    await this.waitForDisplayed(selector, timeout);
   }
 }
 

@@ -180,7 +180,17 @@ test.describe('Catalog Module - Landing UI Master Check', () => {
   });
 
   test('TC-C04: should verify Full Catalog Data Integrity', async ({ driver }) => {
-    test.setTimeout(180000);
+    // Tablet-only timeout branch. Diagnosis (2026-05-20): the deterministic
+    // half-viewport scan reaches 30/32 by flick ~50 and finishes ~flick 53
+    // (~195-200s) on the Pixel Tablet — its denser grid + slower a11y bridge
+    // make each flick cost ~3.6s. Progress is steady/monotonic (not a stall),
+    // so the scan mechanics are correct; it's purely ~10% over the 180s budget.
+    // Give tablet headroom rather than speeding up the scroll (faster scrolling
+    // re-introduces the a11y-bridge race the slow scan was built to avoid).
+    // Phone path is untouched at 180s.
+    const { width } = await driver.getWindowRect();
+    const isTablet = width > 1200;
+    test.setTimeout(isTablet ? 300000 : 180000);
     const catalogIntact = await gridPage.verifyFullCatalogIntegrity();
     expect(catalogIntact).toBe(true);
   });

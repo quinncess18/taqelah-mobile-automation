@@ -143,9 +143,9 @@ class GesturesPage extends BasePage {
     }]);
   }
 
-  async verifyToast(text) {
+  async verifyToast(text, timeout = 5000) {
     const toast = await this.driver.$(this.toastMsg(text));
-    await toast.waitForDisplayed({ timeout: 1600 });
+    await toast.waitForDisplayed({ timeout });
     return await toast.isDisplayed();
   }
 

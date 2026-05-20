@@ -2,7 +2,7 @@
 
 Defines the test coverage and verification strategy for the Taqelah mobile application.
 
-**Current scope:** Android emulators — Pixel 8 (API 35, local) + Pixel Tablet (API 35, local) for full coverage; CI runs Pixel 6 profile at API 34 (Android 14, google_apis target). 82 TCs across 17 sections verified on local Pixel 8 + Tablet (§0 Smoke, §1–§14 unit modules, §15 Checkout, §16 Regression). §0 Smoke runs first as a foundation gate (~30s), §16 Regression runs last as a deep cross-module E2E. CI on API 34 with `retries: 2` to absorb emulator flake.
+**Current scope:** Android emulators — Pixel 8 (API 35, local) + Pixel Tablet (API 35, local) for full coverage; CI runs Pixel 6 profile at API 34 (Android 14, google_apis target). 96 TCs across 17 sections verified on local Pixel 8 + Tablet (§0 Smoke, §1–§14 unit modules, §15 Checkout, §16 Regression) — Pixel Tablet skips the 8 Location TCs (AVD GPS emits no fixes). §0 Smoke runs first as a foundation gate (~30s), §16 Regression runs last as a deep cross-module E2E. CI on API 34 with `retries: 2` to absorb emulator flake.
 
 **iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5) for §0 smoke; expansion to full module coverage pending selector iteration. Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
 
@@ -15,7 +15,7 @@ Each module's supported Android API range is an explicit contract. A new module 
 | Module | Min API | Max API tested | Rationale / Constraint |
 |---|---|---|---|
 | Auth (01) | 29 | 35 | No version-gated APIs. |
-| Catalog (02) | 29 | 35 | No version-gated APIs. |
+| Catalog (02) | 29 | 35 | No version-gated APIs. **TC-C04** (32-item integrity scan) runs a **300s test timeout on Pixel Tablet** (`width > 1200`); phone stays at 180s. The tablet's denser grid + slower a11y bridge make each half-viewport flick cost ~3.6s, so the deterministic scan reaches 32/32 around flick 53 (~192s) — over the 180s phone budget but well under 300s. Scroll mechanics are unchanged across devices (slowing them re-introduces the a11y-bridge race). |
 | Nav Main (03/01) | 29 | 35 | No version-gated APIs. |
 | Gestures (03/02) | 29 | 35 | Pinch detection unified phone+tablet via dense-scan pixel count (2026-05-12). |
 | WebView (03/03) | 29 | 35 | DemoApp builds without `WebContentsDebuggingEnabled` — DOM verification unavailable across all versions. |
@@ -24,12 +24,12 @@ Each module's supported Android API range is an explicit contract. A new module 
 | Permissions (03/06) | 29 | 35 | API-29 fallbacks retained (AOSP "Don't ask again" checkbox, generic Allow); inactive on API 33+ via try/catch gating. |
 | **Notifications (03/07)** | **33** | **35** | `POST_NOTIFICATIONS` is API 33+ only. Tests would all `waitForDialog` timeout on API ≤ 32. CI MUST run API 33+ for this module to verify. |
 | Tabs & Navigation (03/08) | 29 | 35 | No version-gated APIs. Pager swipe geometry (`y = height * 0.55`) works on phone + tablet without branching. |
-| Camera (03/09) | 30 | 35 | Uses Android 11+ "While using the app" permission dialog (`permission_allow_foreground_only_button`). API 29 fallbacks not retained — the DemoApp's Camera screen targets the modern foreground-only model. |
+| Camera (03/09) | 30 | 35 | Uses Android 11+ "While using the app" permission dialog (`permission_allow_foreground_only_button`). API 29 fallbacks not retained — the DemoApp's Camera screen targets the modern foreground-only model. TC-CM05 asserts dialog presence via `waitForDialogDisplayed(10s)` (wait-in-try/catch), not single-shot `isVisible` — on fresh entry the OS dialog lags the Flutter permission request 1–2s and raced the old check (2026-05-20). |
 | **Location (03/10)** | 29 | 35 | No version-gated dialog widgets. **Pixel Tablet AVD skipped at runtime** (`width > 1200` → `test.skip`) — emulator-5556's GPS provider does not emit fixes within practical timeouts, so the Current Location card never renders even with OS permission granted. Module is Pixel 8 + CI Pixel 6 only until `mobile: setGeoLocation` injection or real-device cloud is wired. |
 | **Dark Mode (03/11)** | 29 | 35 | No version-gated widgets. Cross-cutting smoke that visits every previously-tested page in dark mode and validates AppBar background via 3-spot pixel sampling. Location step is skipped on Pixel Tablet only (inherits 10/Location's GPS limitation). |
 | **Products + Search (04/01)** | 29 | 35 | No version-gated widgets. Pixel Tablet runs in **forced portrait** — orientation lock applied AFTER login via `mobile: shell` + `settings put system user_rotation 1`. Without rotation, Pixel Tablet's natural landscape (2560×1600) makes product cards taller than the viewport and NAF add-to-cart child Buttons don't enter the a11y tree. W3C `setOrientation` is a no-op on UIA2. No orientation revert in `afterAll` — Cart (04/02) chains off this state. |
 | **Cart (04/02)** | 29 | 35 | No version-gated widgets. Chains off Products' end-state (7-line cart, portrait lock inherited). `collectAllLines()` walks the cart ScrollView on phone (Compose virtualises rows past viewport); no-ops on tablet portrait where all 7 fit. Per-line NAF Buttons (Minus/Plus/Delete) resolved via direct `.click()` on line ImageView's Button children in DOM order — sidesteps the duplicate content-desc issue with PD02 color variants and the per-device coordinate-offset problem. Cart's `afterAll` reverts tablet to landscape at end of chain. |
-| **Checkout (04/03)** | 29 | 35 | No version-gated widgets. Chains off Cart's empty-state via Continue Shopping → Boho grid → `clearSearch()`. Adds 2–3 distinct random items via the Detail-page add path (the grid card direct-add icon collided with the Material snackbar's VIEW CART overlay on bottom-of-grid cards — reliable across runs only via Detail). Shipping fields are 7 NAF EditTexts at positional `instance(0–6)` wrapped in `UiScrollable.scrollIntoView`. Review Order line items are `View + descriptionContains("Qty:")` (different class than Cart's `ImageView` lines). Pixel Tablet verification pending. |
+| **Checkout (04/03)** | 29 | 35 | No version-gated widgets. Chains off Cart's empty-state via Continue Shopping → Boho grid → `clearSearch()`. Adds 2–3 distinct random items via the Detail-page add path (the grid card direct-add icon collided with the Material snackbar's VIEW CART overlay on bottom-of-grid cards — reliable across runs only via Detail). Shipping fields are 7 NAF EditTexts at positional `instance(0–6)` wrapped in `UiScrollable.scrollIntoView`. Review Order line items are `View + descriptionContains("Qty:")` (different class than Cart's `ImageView` lines). Pixel Tablet verified (2026-05-20). |
 
 **Operating contract:**
 - Adding a new module → declare its min API + reason. If hardware-feature-gated, document the workaround.
@@ -371,10 +371,10 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 
 | Test ID | Description | Strategy | Pixel 8 | Pixel Tablet |
 | :--- | :--- | :--- | :---: | :---: |
-| **TC-K01** | Cart → Checkout → empty To Payment → 6 required-field errors; stay on Shipping | Negative | ✅ | ⏳ |
-| **TC-K02** | Fill `valid[0]` → To Payment → Review (5-line Shipping Address card, totals match Cart) → Place Order → Thank You | E2E Flow | ✅ | ⏳ |
-| **TC-K03** | Continue Shopping → Catalog Landing + cart badge=0 | E2E Flow | ✅ | ⏳ |
-| **TC-K04** | Fill 7 fields → To Payment → Back → Shipping Info preserves all 7 values verbatim | State Preservation | ✅ | ⏳ |
+| **TC-K01** | Cart → Checkout → empty To Payment → 6 required-field errors; stay on Shipping | Negative | ✅ | ✅ |
+| **TC-K02** | Fill `valid[0]` → To Payment → Review (5-line Shipping Address card, totals match Cart) → Place Order → Thank You | E2E Flow | ✅ | ✅ |
+| **TC-K03** | Continue Shopping → Catalog Landing + cart badge=0 | E2E Flow | ✅ | ✅ |
+| **TC-K04** | Fill 7 fields → To Payment → Back → Shipping Info preserves all 7 values verbatim | State Preservation | ✅ | ✅ |
 
 ## 16. End-to-End Regression
 

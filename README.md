@@ -4,7 +4,7 @@ Production-grade automation framework for the **Taqelah Boutique** Flutter appli
 
 ## 🏁 Coverage Summary
 
-82 TCs across 17 sections, all verified on Pixel 8 + Pixel Tablet locally (Location is Pixel 8 only — emulator-5556 GPS doesn't emit fixes).
+96 TCs across 17 sections, all verified on Pixel 8 + Pixel Tablet locally (Location is Pixel 8 only — emulator-5556 GPS doesn't emit fixes).
 
 | Section | TCs | Notes |
 |---|---|---|

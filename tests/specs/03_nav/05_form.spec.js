@@ -169,14 +169,10 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
   });
 
   test('TC-F03: should reject Submit when Terms is OFF, then succeed after ticking Terms (consolidated)', async ({ driver }) => {
-    // Self-reset (was cascading from F02). See F05 for cascade-fragility
-    // rationale — when any upstream TC flakes, downstream TCs inherit dirty
-    // state. Back + re-enter guarantees clean default form.
-    await driver.back();
-    await driver.pause(1000);
-    await navMenu.open();
-    await navMenu.navigateTo(navMenu.navForm);
-    await formPage.waitForPageLoad();
+    // In-page reset to a clean default form — no page exit. The Reset button
+    // clears all fields/selections, so each TC starts clean while staying on
+    // the form. Only F06 leaves (its test is reset-on-reentry).
+    await resetForm(driver, formPage);
 
     // Consolidated TC: fill the form with valid data through Category, leave
     // Terms OFF, Submit → Terms-required toast. Then tick Terms and Submit
@@ -212,13 +208,8 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
   });
 
   test('TC-F04: should show all required-field error messages when submitting an empty form', async ({ driver }) => {
-    // Self-reset (was cascading from F03's post-reset clean state). See F05
-    // for cascade-fragility rationale.
-    await driver.back();
-    await driver.pause(1000);
-    await navMenu.open();
-    await navMenu.navigateTo(navMenu.navForm);
-    await formPage.waitForPageLoad();
+    // In-page reset to a clean (empty) form for the empty-submit checks.
+    await resetForm(driver, formPage);
 
     // Submit with everything empty.
     await scrollToBottom(driver, formPage);
@@ -241,17 +232,8 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
   });
 
   test('TC-F05: should show format-error messages for invalid fields (no Reset; Name stays valid)', async ({ driver }) => {
-    // Self-reset (was cascading from F04). CI exposed cascade fragility:
-    // when F03's terms-toast wait flakes on slow Flutter rendering, F04 inherits
-    // a partial submit + Terms ON state, then F05 inherits THAT — and its
-    // .toBe(true) assertions on format-error visibility fail until retry.
-    // Back + re-enter guarantees a clean default form regardless of upstream
-    // state (same reset mechanism F06 uses to verify default state).
-    await driver.back();
-    await driver.pause(1000);
-    await navMenu.open();
-    await navMenu.navigateTo(navMenu.navForm);
-    await formPage.waitForPageLoad();
+    // In-page reset to a clean default form before filling invalid values.
+    await resetForm(driver, formPage);
 
     // Fill a valid Name (different value to vary coverage) and INVALID values
     // for Email/Phone/Number/Password. Toggle Terms ON so format errors fire
@@ -301,7 +283,10 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
     // state matching TC-F01.
     await formPage.resetToTop();
 
-    // 1/5 = 0%
+    // 1/5 = 0%. Scroll the Rating SeekBar into the viewport first — F06
+    // inherits F05's tall error-state form, so the SeekBar sits below the
+    // fold; without this the drag misses and the thumb stays at F05's 4/5.
+    await scrollToBottom(driver, formPage);
     await formPage.setRating(0);
     expect(await formPage.getRatingText()).toBe('1/5');
 
