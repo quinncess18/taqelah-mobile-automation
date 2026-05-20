@@ -13,17 +13,22 @@ class CatalogLandingPage extends BasePage {
     super(driver);
     
     // Header Selectors
-    this.cartBtn = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.Button").instance(1)' 
-      : '~cart-icon';
-    
+    // The cart icon is an icon-only button with NO name/label on either
+    // platform (Flutter Key() reaches Android content-desc but not iOS
+    // accessibilityIdentifier, and there's no visible text to fall back to).
+    // Both platforms therefore anchor on it positionally: Android = the 2nd
+    // header Button; iOS = the only nameless visible button on Landing
+    // (verified against TC-C02 diagnostic XML, run 26162857469 — header has
+    // "Open navigation menu", the nameless cart, "Shop All", "View All").
+    this.cartBtn = this.isAndroid
+      ? 'android=new UiSelector().className("android.widget.Button").instance(1)'
+      : '-ios predicate string:type == "XCUIElementTypeButton" AND name == nil AND visible == 1';
+
     // iOS selectors below are verified against diagnostic XML from run
     // 26080595543 — Catalog Landing exposes each element with its visible
     // text as both `name` and `label`. Appium's `~` finder falls back to
     // `name` when accessibilityIdentifier is empty, so multi-line content
     // works the same way it does on Android with `description(...)`.
-    // (cartBtn iOS selector unchanged — no cart icon visible in the dumped
-    // Landing XML; will fix when Cart entry is exercised by a TC.)
 
     // Hero Section (Combined multi-line string from UI dump)
     this.heroBanner = this.isAndroid

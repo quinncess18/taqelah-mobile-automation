@@ -153,7 +153,7 @@ jobs:
           done
           echo "Appium did not come up"; exit 1
 
-      - name: Run iOS Modules (Smoke + Auth)
+      - name: Run iOS Tests
         env:
           CI: "true"
           DEVICE_COUNT: "1"
