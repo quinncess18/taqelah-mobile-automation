@@ -122,12 +122,10 @@ test.describe('Navigation - Tabs & Navigation Suite (TC-T01-T06)', () => {
   });
 
   test('TC-T06: should reset Feed pager to Page 1 when leaving the screen via Back and re-entering', async ({ driver }) => {
-    const t0 = Date.now();
     // Advance Feed to Page 3.
     await tabsPage.swipePager('left');
     await tabsPage.swipePager('left');
     const onPage3 = await tabsPage.isVisible(tabsPage.pageHint(3));
-    console.log(`[T06] after 2 left swipes — pageHint(3) visible=${onPage3} at +${Date.now() - t0}ms`);
     expect(onPage3).toBe(true);
 
     // Exit via Back, then re-enter from the nav drawer.
@@ -136,11 +134,9 @@ test.describe('Navigation - Tabs & Navigation Suite (TC-T01-T06)', () => {
     await navMenu.open();
     await navMenu.navigateTo(navMenu.navTabs);
     await tabsPage.waitForPageLoad();
-    console.log(`[T06] re-entered Tabs screen at +${Date.now() - t0}ms`);
 
     const onPage1 = await tabsPage.isVisible(tabsPage.pageHint(1));
     const feedSelected = await tabsPage.isSelected(tabsPage.feedTab);
-    console.log(`[T06] reset check — pageHint(1)=${onPage1}, feedTabSelected=${feedSelected} at +${Date.now() - t0}ms`);
     expect(onPage1).toBe(true);
     expect(feedSelected).toBe(true);
   });

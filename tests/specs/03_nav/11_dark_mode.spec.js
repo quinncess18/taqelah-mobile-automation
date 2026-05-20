@@ -143,7 +143,6 @@ test.describe('Navigation - Dark Mode Suite (TC-DK01-DK03)', () => {
   test('TC-DK01: default state shows Dark Mode OFF; toggling ON darkens drawer and Home', async ({ driver }) => {
     // Capture the light baseline BEFORE toggling so DK02/DK03 can compare.
     lightBaseline = await sampleAvgBrightness(driver);
-    console.log(`[darkmode] light baseline = ${lightBaseline.toFixed(1)}`);
     expect(lightBaseline).toBeGreaterThan(180); // sanity: light AppBar is near-white
 
     await navMenu.open();
@@ -227,7 +226,6 @@ test.describe('Navigation - Dark Mode Suite (TC-DK01-DK03)', () => {
 
     for (const step of walk) {
       if (step.phoneOnly && isTablet) continue;
-      console.log(`[darkmode] visiting ${step.label}`);
 
       await navMenu.open();
       if (step.preSwipe) {

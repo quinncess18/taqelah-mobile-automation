@@ -79,7 +79,6 @@ class LoginPage extends BasePage {
   }
 
   async waitForPageLoad() {
-    const t0 = Date.now();
     const { width } = await this.driver.getWindowRect();
     if (width > 1200) await this.resetToTop();
     await this.waitForDisplayed(this.title);
@@ -89,7 +88,6 @@ class LoginPage extends BasePage {
     // checks. Wait for the username field itself — that's what every caller
     // asserts next, and it self-scales from fast local boots to slow CI.
     await this.waitForDisplayed(this.usernameField);
-    console.log(`[L01] login form visible at +${Date.now() - t0}ms (width=${width})`);
   }
 
   /**
