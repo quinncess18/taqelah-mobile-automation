@@ -36,17 +36,23 @@ test.describe('Catalog Module - Landing UI Master Check', () => {
       await driver.pause(1500);
     } else {
       // iOS has no `pm clear` equivalent — terminate + relaunch the app via
-      // XCUITest mobile extensions. Session uses `noReset: true` so this
-      // doesn't wipe app data, but it returns the UI to the cold-launch
-      // Login screen which is all the cascade replay needs.
+      // XCUITest mobile extensions. `noReset: true` keeps app data AND the
+      // session persists across relaunch (proven by TC-L06), so the app may
+      // come back already logged in on Landing rather than the cold Login
+      // screen. The conditional login below handles both cases.
       await driver.execute('mobile: terminateApp', { bundleId: loginPage.appPackage });
       await driver.pause(1500);
       await driver.execute('mobile: launchApp', { bundleId: loginPage.appPackage });
       await driver.pause(1500);
     }
 
-    await loginPage.waitForPageLoad();
-    await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
+    // Log in only if the Login screen is actually present. Android `pm clear`
+    // always lands here; iOS may already be on Landing via a persisted session
+    // (mirrors the self-healing gate in 02_categories.spec.js).
+    if (await loginPage.isVisible(loginPage.loginButton)) {
+      await loginPage.waitForPageLoad();
+      await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
+    }
     await landingPage.waitForPageLoad();
   }
 

@@ -150,7 +150,11 @@ const test = base.extend({
       if (!process.env.CI) return;
       if (!driver.isIOS) return;
 
-      const slug = testInfo.title.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+      // Suffix the retry index so a later attempt's dump doesn't overwrite the
+      // first failure's screen. (Retries that fail in beforeEach capture a
+      // post-relaunch screen, which previously masked the real failing screen.)
+      const retrySuffix = testInfo.retry > 0 ? `-retry${testInfo.retry}` : '';
+      const slug = testInfo.title.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) + retrySuffix;
       const outDir = path.resolve(process.cwd(), 'test-results', 'diagnostics');
       try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 

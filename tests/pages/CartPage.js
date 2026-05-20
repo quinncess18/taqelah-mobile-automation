@@ -34,9 +34,12 @@ class CartPage extends BasePage {
       ? 'android=new UiSelector().description("My Cart")'
       : '~My Cart';
 
+    // iOS: Flutter Key() ('empty-cart-message') doesn't reach
+    // accessibilityIdentifier; fall back to the visible text (same label
+    // Android matches via content-desc).
     this.emptyCartMsg = this.isAndroid
       ? 'android=new UiSelector().description("Your cart is empty")'
-      : '~empty-cart-message';
+      : '~Your cart is empty';
 
     this.continueShoppingBtn = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.Button").description("Continue Shopping")'
