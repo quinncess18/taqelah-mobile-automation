@@ -218,7 +218,6 @@ test.describe('Products Module — Shopping Cart (§14)', () => {
     entryLines = await cartPage.collectAllLines();
     entryLineCount = entryLines.length;
     entryCartTotal = await cartPage.getCartTotal();
-    console.log(`[S01] entryLineCount=${entryLineCount}, entryCartTotal=${entryCartTotal}, names=[${entryLines.map(l => l.name).join(' | ')}]`);
   }
 
   async function actionsS02(driver) {

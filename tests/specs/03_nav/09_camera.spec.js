@@ -76,19 +76,15 @@ test.describe('Navigation - Camera Suite — Granted Path (TC-CM01-CM04)', () =>
   });
 
   test('TC-CM02: should tap shutter and show "Photo Captured!" chip plus a "Photo saved: CAP<digits>.jpg" toast', async ({ driver }) => {
-    const t0 = Date.now();
     await cameraPage.tapShutter();
-    console.log(`[CM02] shutter tapped + post-tap pause done at +${Date.now() - t0}ms`);
 
     const chipVisible = await cameraPage.isVisible(cameraPage.photoCapturedChip);
-    console.log(`[CM02] chip visible=${chipVisible} at +${Date.now() - t0}ms`);
     expect(chipVisible).toBe(true);
 
     // Toast is transient (~3-4s in a11y tree). Filename is non-deterministic.
     const toastEl = await driver.$(cameraPage.photoSavedToast);
     await toastEl.waitForDisplayed({ timeout: 4000 });
     const toastDesc = String(await toastEl.getAttribute('content-desc'));
-    console.log(`[CM02] toast captured at +${Date.now() - t0}ms — desc="${toastDesc}"`);
     expect(toastDesc).toMatch(/^Photo saved: CAP\d+\.jpg$/);
   });
 

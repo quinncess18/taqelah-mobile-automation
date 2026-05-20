@@ -181,7 +181,6 @@ class ProductGridPage extends BasePage {
     if (candidates.length === 0) throw new Error('No product cards found on grid');
     const pick = candidates[Math.floor(Math.random() * candidates.length)];
     const [name, price] = pick.desc.split('\n');
-    console.log(`[ProductGridPage] picked random product: "${name}" ${price}`);
     return { el: pick.el, name, price };
   }
 
@@ -206,7 +205,6 @@ class ProductGridPage extends BasePage {
     if (candidates.length === 0) throw new Error('No fully-rendered product cards with add button found');
     const pick = candidates[Math.floor(Math.random() * candidates.length)];
     const [name, price] = pick.desc.split('\n');
-    console.log(`[ProductGridPage] picked random product (direct-add): "${name}" ${price}`);
     return { addBtn: pick.addBtn, name, price };
   }
 
@@ -384,11 +382,9 @@ class ProductGridPage extends BasePage {
 
       if (scrollCount % 5 === 0) {
         dumpCatalog(`flick${String(scrollCount).padStart(2, '0')}`);
-        console.log(`[C04] flick ${scrollCount}: ${collectedItems.size}/${totalGoal}`);
       }
 
       if (collectedItems.size >= totalGoal) {
-        console.log(`[C04] reached goal at flick ${scrollCount}`);
         break;
       }
 
@@ -448,12 +444,12 @@ class ProductGridPage extends BasePage {
     dumpCatalog('final');
 
     if (collectedItems.size < totalGoal) {
+      // Failure-path diagnostic: name exactly which catalog items the scan
+      // never surfaced (fires only when C04 is about to fail).
       const data = require('../data/products');
       const expected = Object.values(data.categories).flatMap(c => c.products.map(p => p.name));
       const missing = expected.filter(n => !collectedItems.has(n));
       console.log(`[C04] FINAL ${collectedItems.size}/${totalGoal} — missing: [${missing.join(', ')}]`);
-    } else {
-      console.log(`[C04] FINAL ${collectedItems.size}/${totalGoal} OK`);
     }
 
     return collectedItems.size >= totalGoal;
