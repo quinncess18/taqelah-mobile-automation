@@ -13,52 +13,54 @@ class GesturesPage extends BasePage {
     // Page Title
     this.title = this.isAndroid ? 'android=new UiSelector().description("Gesture Demo")' : '~Gesture Demo';
 
+    // iOS: Flutter Key()-less — `~<visible text>` name-fallback mirrors the
+    // Android description; CONTAINS predicates for partial/positional matches.
     // Swipe Cards Section
-    this.sectionSwipeCards = this.isAndroid ? 'android=new UiSelector().description("Swipe Cards")' : '~section-swipe-cards';
-    this.instructionSwipe = this.isAndroid ? 'android=new UiSelector().description("Swipe right to favorite, left to delete")' : '~instruction-swipe';
+    this.sectionSwipeCards = this.isAndroid ? 'android=new UiSelector().description("Swipe Cards")' : '~Swipe Cards';
+    this.instructionSwipe = this.isAndroid ? 'android=new UiSelector().description("Swipe right to favorite, left to delete")' : '~Swipe right to favorite, left to delete';
     this.swipeCard = (index) => this.isAndroid
       ? `android=new UiSelector().description("Swipe Card ${index}")`
-      : `~swipe-card-${index}`;
+      : `~Swipe Card ${index}`;
 
     // Drag & Drop Section
-    this.sectionDragDrop = this.isAndroid ? 'android=new UiSelector().description("Drag & Drop Reorder")' : '~section-drag-drop';
-    this.instructionDragDrop = this.isAndroid ? 'android=new UiSelector().description("Long press and drag to reorder")' : '~instruction-drag-drop';
+    this.sectionDragDrop = this.isAndroid ? 'android=new UiSelector().description("Drag & Drop Reorder")' : '~Drag & Drop Reorder';
+    this.instructionDragDrop = this.isAndroid ? 'android=new UiSelector().description("Long press and drag to reorder")' : '~Long press and drag to reorder';
     this.dragItem = (id) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("Drag Item ${id}")`
-      : `~drag-item-${id}`;
+      : `-ios predicate string:name CONTAINS "Drag Item ${id}"`;
     this.dragItemExact = (position, id) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("${position}\nDrag Item ${id}")`
-      : `~drag-item-${id}-pos-${position}`;
+      : `-ios predicate string:name CONTAINS "${position}" AND name CONTAINS "Drag Item ${id}"`;
     // Finds whatever card is currently occupying a given position slot
     this.dragSlot = (position) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("${position}\nDrag Item")`
-      : `~drag-slot-${position}`;
+      : `-ios predicate string:name CONTAINS "${position}" AND name CONTAINS "Drag Item"`;
 
     // Long Press Section
-    this.sectionLongPress = this.isAndroid ? 'android=new UiSelector().description("Long Press")' : '~section-long-press';
-    this.instructionLongPress = this.isAndroid ? 'android=new UiSelector().description("Long press the card below")' : '~instruction-long-press';
+    this.sectionLongPress = this.isAndroid ? 'android=new UiSelector().description("Long Press")' : '~Long Press';
+    this.instructionLongPress = this.isAndroid ? 'android=new UiSelector().description("Long press the card below")' : '~Long press the card below';
     this.longPressBtn = this.isAndroid
       ? 'android=new UiSelector().description("Long press me for options")'
-      : '~long-press-area';
+      : '~Long press me for options';
 
     // Double Tap Section
     this.doubleTapArea = this.isAndroid
       ? 'android=new UiSelector().description("Double Tap to Zoom")'
-      : '~double-tap-area';
+      : '~Double Tap to Zoom';
 
     // Pinch to Zoom Section
     this.pinchArea = this.isAndroid
       ? 'android=new UiSelector().description("Pinch to Zoom")'
-      : '~pinch-area';
+      : '~Pinch to Zoom';
 
     // Toast & Long Press Options
     this.toastMsg = (text) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("${text}")`
-      : `~toast-${text}`;
-    this.optionCopy = this.isAndroid ? 'android=new UiSelector().description("Copy")' : '~option-copy';
-    this.optionShare = this.isAndroid ? 'android=new UiSelector().description("Share")' : '~option-share';
-    this.optionDelete = this.isAndroid ? 'android=new UiSelector().description("Delete")' : '~option-delete';
-    this.optionDismiss = this.isAndroid ? 'android=new UiSelector().description("Dismiss menu")' : '~option-dismiss';
+      : `-ios predicate string:name CONTAINS "${text}"`;
+    this.optionCopy = this.isAndroid ? 'android=new UiSelector().description("Copy")' : '~Copy';
+    this.optionShare = this.isAndroid ? 'android=new UiSelector().description("Share")' : '~Share';
+    this.optionDelete = this.isAndroid ? 'android=new UiSelector().description("Delete")' : '~Delete';
+    this.optionDismiss = this.isAndroid ? 'android=new UiSelector().description("Dismiss menu")' : '~Dismiss menu';
   }
 
   async waitForPageLoad() {
@@ -183,6 +185,14 @@ class GesturesPage extends BasePage {
 
     const base64 = await this.driver.takeScreenshot();
     const png = PNG.sync.read(Buffer.from(base64, 'base64'));
+    // Element bounds are logical points; the screenshot PNG is device pixels
+    // (1× on the Android emulator, 2×/3× on iOS Retina). Scale logical coords
+    // into PNG space before indexing, or iOS samples the wrong region.
+    const scale = png.width / screenWidth;
+    const bright = (x, y) => {
+      const i = (png.width * Math.round(y * scale) + Math.round(x * scale)) * 4;
+      return Math.round((png.data[i] + png.data[i + 1] + png.data[i + 2]) / 3);
+    };
 
     let minBrightness = 255;
     if (isTablet) {
@@ -193,18 +203,14 @@ class GesturesPage extends BasePage {
       const stepY = Math.max(40, Math.round((canvasBottom - canvasTop) / 10));
       for (let y = canvasTop + 10; y < canvasBottom - 10; y += stepY) {
         for (let x = labelLoc.x + 10; x < labelLoc.x + labelSz.width - 10; x += stepX) {
-          const i = (png.width * y + x) * 4;
-          const brightness = Math.round((png.data[i] + png.data[i + 1] + png.data[i + 2]) / 3);
-          if (brightness < minBrightness) minBrightness = brightness;
+          minBrightness = Math.min(minBrightness, bright(x, y));
         }
       }
     } else {
       // Phone: small cross at canvas center (proven working).
       const r = 50;
       for (const [x, y] of [[cx, cy], [cx - r, cy], [cx + r, cy], [cx, cy - r], [cx, cy + r]]) {
-        const i = (png.width * y + x) * 4;
-        const brightness = Math.round((png.data[i] + png.data[i + 1] + png.data[i + 2]) / 3);
-        if (brightness < minBrightness) minBrightness = brightness;
+        minBrightness = Math.min(minBrightness, bright(x, y));
       }
     }
 
@@ -257,6 +263,8 @@ class GesturesPage extends BasePage {
 
     const base64 = await this.driver.takeScreenshot();
     const png = PNG.sync.read(Buffer.from(base64, 'base64'));
+    // Logical points → PNG device pixels (1× Android, 2×/3× iOS Retina).
+    const scale = png.width / screenWidth;
 
     // Dense scan: count dark pixels every 10px across the full canvas
     // (label.y+label.h → canvasBottom, full screen width). Robust to icon
@@ -274,7 +282,7 @@ class GesturesPage extends BasePage {
     let darkCount = 0;
     for (let y = canvasTop; y < canvasBottom; y += 10) {
       for (let x = 0; x < screenWidth; x += 10) {
-        const i = (png.width * y + x) * 4;
+        const i = (png.width * Math.round(y * scale) + Math.round(x * scale)) * 4;
         const brightness = Math.round((png.data[i] + png.data[i + 1] + png.data[i + 2]) / 3);
         if (brightness < 180) darkCount++;
       }

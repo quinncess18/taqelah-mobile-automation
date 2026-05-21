@@ -4,7 +4,7 @@ Defines the test coverage and verification strategy for the Taqelah mobile appli
 
 **Current scope:** Android emulators — Pixel 8 (API 35, local) + Pixel Tablet (API 35, local) for full coverage; CI runs Pixel 6 profile at API 34 (Android 14, google_apis target). 96 TCs across 17 sections verified on local Pixel 8 + Tablet (§0 Smoke, §1–§14 unit modules, §15 Checkout, §16 Regression) — Pixel Tablet skips the 8 Location TCs (AVD GPS emits no fixes). §0 Smoke runs first as a foundation gate (~30s), §16 Regression runs last as a deep cross-module E2E. CI on API 34 with `retries: 2` to absorb emulator flake.
 
-**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5) for §0 smoke; expansion to full module coverage pending selector iteration. Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
+**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5). Verified green: §0 Smoke, §1 Auth, §2 Catalog, §3 Nav Main (03/01); remaining modules pending selector iteration (see iOS Coverage Matrix). Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
 
 > Status legend: ✅ Verified · ⚠️ Under investigation · ⏳ Pending · — Not applicable
 
@@ -52,9 +52,9 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 | Module | iPhone 15 | Notes |
 |---|---|---|
 | §0 Smoke | ✅ | Verified green on CI run 26081190412 (2.9 min). Selectors: title `~DemoApp`, fields `~Username`/`~Password`, login `~Login`, Landing's `~Shop All`, drawer `~Logout` — all via Appium's `~` finder name-fallback. Full TC-SM01 round-trip (launch → login → Landing → logout → Login) passes. |
-| §1 Auth (01) | ⚠️ | In progress. Inherits §0's LoginPage selectors. demoCredentials fixed (`~Demo Credentials`). verifyUsername branched to use iOS `value` attribute. passwordToggle / mainError / usernameFieldError / passwordFieldError iOS branches still unverified — will be fixed as their TCs surface diagnostics. |
-| §2 Catalog (02) | ⏳ | First cross-screen work. CatalogLandingPage + categories iOS branches all unverified. |
-| §3 Nav Main (03/01) | ⏳ | Drawer iOS branches unverified (logout button surfaces in §0 first). |
+| §1 Auth (01) | ✅ | Verified green on CI (TC-L01–L06, N01–N03). passwordToggle = nameless-visible-button predicate; mainError / field errors via `BEGINSWITH` predicates; typing uses `addValue` (not `setValue`) so the Flutter validator's controller sees input; persisted-session reset (noReset survives terminate/launch). |
+| §2 Catalog (02) | ✅ | Verified green on CI run 26205157543 (landing C01–C07 + categories C08–C11). resultCount = `name BEGINSWITH "Showing"`; cart/sort = positional app-bar nameless buttons (geometry helper, leftmost=sort/rightmost=cart); product cards via `name CONTAINS "$"` class chain; getFirstProductDetails iterates `$$` (positional `[1]`+waitForDisplayed false-negatives even when visible); deviceBack = left-edge swipe (Cupertino route pop). |
+| §3 Nav Main (03/01) | ✅ | Verified green on CI run 26209797847 (TC-M01–M03). Drawer items via `~<visible text>` name-fallback; dark-mode toggle = lone `XCUIElementTypeSwitch` (reads `value`). The drawer ScrollView is **not** safe-area inset on iOS → profile (zero-size) + Home (under the Dynamic Island) asserted as EXISTING, not displayed; `open()` is idempotent (a left-edge deviceBack can leave the drawer open, covering the hamburger); `close()` taps the scrim past the ~304px drawer. |
 | §3 Gestures (03/02) | ⏳ | Pinch/swipe should work via XCUITest W3C actions; canvas pixel sampling may need tuning for Retina (2× / 3× scale). |
 | §3 WebView (03/03) | ⏳ | WKWebView vs Android WebView — content-only assertions (Example Domain text) should port. |
 | §3 Dialogs (03/04) | ⏳ | iOS Alert / ActionSheet have different a11y types than Android dialog widgets. Expect significant branch divergence. |
