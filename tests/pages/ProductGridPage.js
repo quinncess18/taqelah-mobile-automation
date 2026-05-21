@@ -17,13 +17,25 @@ class ProductGridPage extends BasePage {
       ? `android=new UiSelector().description("${name}")` 
       : `~${name}`;
     
-    this.sortBtn = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.Button").instance(1)' 
-      : '~sort-button';
-    
+    // iOS app-bar action icons (Sort, Cart) are nameless buttons — Flutter
+    // Key() ('sort-button'/'cart-icon') does not reach accessibilityIdentifier.
+    // The Landing "only nameless visible button" predicate fails on the grid
+    // because the grid ALSO exposes nameless per-card add-to-cart buttons, so
+    // these two are disambiguated positionally in _iosAppBarActionBtn()
+    // (leftmost = Sort, rightmost = Cart — matches the Android instance order).
+    // This shared predicate is that helper's base query; openSortMenu() /
+    // navigateToCart() resolve through the helper, not the raw string.
+    // Verified against TC-C05/C06 iOS diagnostic XML, run 26166346519.
+    this.iosNamelessBtn =
+      '-ios predicate string:type == "XCUIElementTypeButton" AND name == nil AND visible == 1';
+
+    this.sortBtn = this.isAndroid
+      ? 'android=new UiSelector().className("android.widget.Button").instance(1)'
+      : this.iosNamelessBtn;
+
     this.cartBtn = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.Button").instance(2)'
-      : '~cart-icon';
+      : this.iosNamelessBtn;
 
     // Cart badge — small View overlaying the cart icon, content-desc = count
     // when items > 0; node is absent when cart is empty. The only numeric-only
@@ -34,27 +46,35 @@ class ProductGridPage extends BasePage {
       : '~cart-badge';
     
     // Search & Metadata
-    this.searchInput = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.EditText")' 
-      : '~search-input';
-    
-    this.resultCount = this.isAndroid 
-      ? 'android=new UiSelector().descriptionContains("Showing")' 
-      : '~result-count';
-    
-    // Grid Elements
-    this.productCard = (name) => this.isAndroid 
-      ? `android=new UiSelector().className("android.widget.ImageView").descriptionContains("${name}")` 
-      : `~product-${name.toLowerCase().replace(/ /g, '-')}`;
-    
-    this.addToCartBtn = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.Button")' 
-      : '~add-to-cart';
+    this.searchInput = this.isAndroid
+      ? 'android=new UiSelector().className("android.widget.EditText")'
+      : '~Search dresses...';
 
-    // Universal Item Selector for Audits
+    this.resultCount = this.isAndroid
+      ? 'android=new UiSelector().descriptionContains("Showing")'
+      : '-ios predicate string:type == "XCUIElementTypeStaticText" AND name BEGINSWITH "Showing"';
+    
+    // Grid Elements — iOS product cards are Images whose name/label is the
+    // multi-line "<name>\n$<price>". Match on the name prefix (Key()
+    // 'product-<slug>' doesn't reach accessibilityIdentifier). `~` is
+    // exact-match, so a BEGINSWITH predicate is required for the prefix.
+    this.productCard = (name) => this.isAndroid
+      ? `android=new UiSelector().className("android.widget.ImageView").descriptionContains("${name}")`
+      : `-ios predicate string:type == "XCUIElementTypeImage" AND name BEGINSWITH "${name}"`;
+
+    // Per-card add-to-cart buttons are nameless on iOS (Key() 'add-to-cart'
+    // lost). NOTE: not yet positionally resolved for iOS — §4 (the only
+    // consumer) is Android-only today; convert from an item-present iOS dump
+    // when §4 is ported to the iOS lane.
+    this.addToCartBtn = this.isAndroid
+      ? 'android=new UiSelector().className("android.widget.Button")'
+      : this.iosNamelessBtn;
+
+    // Universal Item Selector for Audits — every product card carries a price,
+    // so "$" in the name uniquely identifies product Images on iOS.
     this.clickableItems = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.ImageView").clickable(true)'
-      : '~product-item';
+      : '-ios class chain:**/XCUIElementTypeImage[`name CONTAINS "$"`]';
 
     // Sort Menu Selectors
     this.sortTitle = this.isAndroid ? 'android=new UiSelector().description("Sort By")' : '~Sort By';
@@ -63,10 +83,12 @@ class ProductGridPage extends BasePage {
     this.sortOptionPriceLowHigh = this.isAndroid ? 'android=new UiSelector().description("Price (Low-High)")' : '~Price (Low-High)';
     this.sortOptionPriceHighLow = this.isAndroid ? 'android=new UiSelector().description("Price (High-Low)")' : '~Price (High-Low)';
 
-    // First visible product card (instance 0)
+    // First visible product card (instance 0) — iOS: first product Image in
+    // document order (= top-left card). Recomputed per call so it tracks the
+    // current sort order.
     this.firstProductCard = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.ImageView").clickable(true).instance(0)'
-      : '~product-item-0';
+      : '-ios class chain:**/XCUIElementTypeImage[`name CONTAINS "$"`][1]';
 
     // attrName inherited from BasePage.
   }
@@ -76,10 +98,39 @@ class ProductGridPage extends BasePage {
   }
 
   /**
+   * iOS only: resolve a grid app-bar action button by position. Both the Sort
+   * and Cart icons are nameless (Flutter Key() lost), and the Landing
+   * single-nameless-button trick fails here because the grid also exposes
+   * nameless per-card add-to-cart buttons. Filter the nameless visible buttons
+   * to the top app-bar band (the app bar never scrolls, so per-card buttons —
+   * which start well below — are excluded), then order by x: leftmost = Sort,
+   * rightmost = Cart (matches Android instance(1)=sort, instance(2)=cart).
+   * Selector-based discovery + geometric disambiguation; no hardcoded tap
+   * coords. Verified against TC-C05/C06 iOS diagnostic XML, run 26166346519.
+   * @param {'sort'|'cart'} which
+   */
+  async _iosAppBarActionBtn(which) {
+    const APP_BAR_BAND = 120; // app-bar height; per-card buttons sit far below
+    const btns = await this.driver.$$(this.iosNamelessBtn);
+    const inBar = [];
+    for (const el of btns) {
+      const loc = await el.getLocation();
+      if (loc.y < APP_BAR_BAND) inBar.push({ el, x: loc.x });
+    }
+    inBar.sort((a, b) => a.x - b.x);
+    if (inBar.length === 0) {
+      throw new Error(`iOS grid app-bar ${which} button not found`);
+    }
+    return which === 'cart' ? inBar[inBar.length - 1].el : inBar[0].el;
+  }
+
+  /**
    * Open the sort selection menu
    */
   async openSortMenu() {
-    const btn = await this.driver.$(this.sortBtn);
+    const btn = this.isIOS
+      ? await this._iosAppBarActionBtn('sort')
+      : await this.driver.$(this.sortBtn);
     await btn.click();
     await this.waitForDisplayed(this.sortTitle);
   }
@@ -142,7 +193,9 @@ class ProductGridPage extends BasePage {
   }
 
   async navigateToCart() {
-    const btn = await this.driver.$(this.cartBtn);
+    const btn = this.isIOS
+      ? await this._iosAppBarActionBtn('cart')
+      : await this.driver.$(this.cartBtn);
     await btn.click();
   }
 

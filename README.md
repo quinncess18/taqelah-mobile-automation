@@ -4,7 +4,7 @@ Production-grade automation framework for the **Taqelah Boutique** Flutter appli
 
 ## 🏁 Coverage Summary
 
-96 TCs across 17 sections, all verified on Pixel 8 + Pixel Tablet locally (Location is Pixel 8 only — emulator-5556 GPS doesn't emit fixes).
+96 TCs across 17 sections, all verified on Pixel 8 + Pixel Tablet locally (Location is Pixel 8 only — emulator-5556 GPS doesn't emit fixes; the GPS-warm-up tests TC-LO02–LO05 are also skipped on Android CI, where the warm-up crashes the GHA AVD's UIA2 session).
 
 | Section | TCs | Notes |
 |---|---|---|
@@ -18,7 +18,7 @@ Production-grade automation framework for the **Taqelah Boutique** Flutter appli
 | §7 Notifications | TC-NT01–NT03 | Allow / Deny / Permanent denial (API 33+) |
 | §8 Tabs | TC-T01–T06 | Pager + nested bottom nav |
 | §9 Camera | TC-CM01–CM07 | Granted + Denied paths |
-| §10 Location | TC-LO01–LO08 | Pixel 8 only |
+| §10 Location | TC-LO01–LO08 | Pixel 8 only; TC-LO02–LO05 skipped on Android CI (GPS warm-up crashes AVD UIA2) |
 | §11 Dark Mode | TC-DK01–DK03 | Cross-cutting AppBar pixel sampling |
 | §12 Products + §13 Search | TC-PD01–PD06, TC-SR01–SR02 | Detail, variants, direct-add, search |
 | §14 Cart | TC-S01–S05 | Line math, qty stepper, delete, empty state |
@@ -96,7 +96,7 @@ npm run test:permissions   # 03_nav/06_permissions.spec.js
 npm run test:notifications # 03_nav/07_notifications.spec.js
 npm run test:tabs          # 03_nav/08_tabs.spec.js
 npm run test:camera        # 03_nav/09_camera.spec.js
-npm run test:location      # 03_nav/10_location.spec.js (Pixel 8 only — tablet auto-skipped)
+npm run test:location      # 03_nav/10_location.spec.js (Pixel 8 only — tablet auto-skipped; LO02–LO05 also skip on Android CI)
 npm run test:darkmode      # 03_nav/11_dark_mode.spec.js (cross-cutting smoke; Location step tablet-skipped)
 npm run test:products      # 04_products/01_product_detail_add.spec.js (tablet auto-rotates to portrait post-login)
 npm run test:cart          # 04_products/02_cart.spec.js — requires test:products to have just run in the same worker
@@ -121,7 +121,7 @@ Each module declares its supported Android API range as an explicit contract.
 | Auth, Catalog, Nav Main, Gestures, WebView, Dialogs, Form, Permissions, Tabs | 29 | All version-gated paths have fallbacks (e.g. PermissionsPage's API-29 AOSP UI selectors). |
 | Camera | 30 | Uses Android 11+ foreground-only permission dialog; API 29 fallbacks not retained. |
 | **Notifications** | **33** | `POST_NOTIFICATIONS` is API 33+. CI MUST run API 33+ for this module to verify. |
-| **Location** | 29 | No version-gated APIs. Pixel Tablet AVD runtime-skipped (`width > 1200`) — emulator-5556's GPS provider does not emit fixes. Module runs on Pixel 8 + CI Pixel 6 only until mock-location injection or real-device cloud is wired. |
+| **Location** | 29 | No version-gated APIs. Pixel Tablet AVD runtime-skipped (`width > 1200`) — emulator-5556's GPS provider does not emit fixes. GPS-warm-up tests TC-LO02–LO05 also skipped on Android CI (`process.env.CI && driver.isAndroid`) — the warm-up crashes the GHA Pixel-6 AVD's UIA2 session and cascades into Products/Checkout/Regression; LO01 + LO06–LO08 still run. Module runs full locally on Pixel 8 until mock-location injection, adb-reboot recovery, or real-device cloud is wired. |
 | **Dark Mode** | 29 | Cross-cutting smoke. Inherits 10/Location's tablet-skip for the Location step only; rest of the walk runs on both devices. |
 | **Products (04/01)** | 29 | No version-gated widgets. Pixel Tablet runs in **forced portrait** — orientation lock applied AFTER login via `mobile: shell` + `settings put system user_rotation 1`. Without rotation, Pixel Tablet's natural landscape makes product cards taller than the viewport and NAF add-to-cart child Buttons don't enter the a11y tree. |
 | **Cart (04/02)** | 29 | Inherits Products' portrait lock (Products' `afterAll` no longer reverts). Cart's `afterAll` performs the end-of-chain revert. Per-line buttons are NAF + duplicate content-desc (PD02 variants) → resolved via direct `.click()` on the line ImageView's Button children. |

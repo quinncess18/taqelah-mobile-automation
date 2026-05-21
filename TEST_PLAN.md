@@ -25,7 +25,7 @@ Each module's supported Android API range is an explicit contract. A new module 
 | **Notifications (03/07)** | **33** | **35** | `POST_NOTIFICATIONS` is API 33+ only. Tests would all `waitForDialog` timeout on API ≤ 32. CI MUST run API 33+ for this module to verify. |
 | Tabs & Navigation (03/08) | 29 | 35 | No version-gated APIs. Pager swipe geometry (`y = height * 0.55`) works on phone + tablet without branching. |
 | Camera (03/09) | 30 | 35 | Uses Android 11+ "While using the app" permission dialog (`permission_allow_foreground_only_button`). API 29 fallbacks not retained — the DemoApp's Camera screen targets the modern foreground-only model. TC-CM05 asserts dialog presence via `waitForDialogDisplayed(10s)` (wait-in-try/catch), not single-shot `isVisible` — on fresh entry the OS dialog lags the Flutter permission request 1–2s and raced the old check (2026-05-20). |
-| **Location (03/10)** | 29 | 35 | No version-gated dialog widgets. **Pixel Tablet AVD skipped at runtime** (`width > 1200` → `test.skip`) — emulator-5556's GPS provider does not emit fixes within practical timeouts, so the Current Location card never renders even with OS permission granted. Module is Pixel 8 + CI Pixel 6 only until `mobile: setGeoLocation` injection or real-device cloud is wired. |
+| **Location (03/10)** | 29 | 35 | No version-gated dialog widgets. **Pixel Tablet AVD skipped at runtime** (`width > 1200` → `test.skip`) — emulator-5556's GPS provider does not emit fixes within practical timeouts, so the Current Location card never renders even with OS permission granted. **Granted path TC-LO02–LO05 also skipped on Android CI** (`process.env.CI && driver.isAndroid`) — the GPS warm-up races and crashes UIA2 on the GHA Pixel-6 AVD, the reloaded session stays dead, and the cascade kills Products/Checkout/Regression. LO01 + denied path LO06–LO08 still run on CI; all of LO01–LO08 run locally on Pixel 8. Guard is **not** iOS-gated. Module is local Pixel 8 (full) + CI Pixel 6 (LO01/LO06–LO08) until `mobile: setGeoLocation` injection, adb-reboot recovery, or real-device cloud is wired. |
 | **Dark Mode (03/11)** | 29 | 35 | No version-gated widgets. Cross-cutting smoke that visits every previously-tested page in dark mode and validates AppBar background via 3-spot pixel sampling. Location step is skipped on Pixel Tablet only (inherits 10/Location's GPS limitation). |
 | **Products + Search (04/01)** | 29 | 35 | No version-gated widgets. Pixel Tablet runs in **forced portrait** — orientation lock applied AFTER login via `mobile: shell` + `settings put system user_rotation 1`. Without rotation, Pixel Tablet's natural landscape (2560×1600) makes product cards taller than the viewport and NAF add-to-cart child Buttons don't enter the a11y tree. W3C `setOrientation` is a no-op on UIA2. No orientation revert in `afterAll` — Cart (04/02) chains off this state. |
 | **Cart (04/02)** | 29 | 35 | No version-gated widgets. Chains off Products' end-state (7-line cart, portrait lock inherited). `collectAllLines()` walks the cart ScrollView on phone (Compose virtualises rows past viewport); no-ops on tablet portrait where all 7 fit. Per-line NAF Buttons (Minus/Plus/Delete) resolved via direct `.click()` on line ImageView's Button children in DOM order — sidesteps the duplicate content-desc issue with PD02 color variants and the per-device coordinate-offset problem. Cart's `afterAll` reverts tablet to landscape at end of chain. |
@@ -63,7 +63,7 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 | §3 Notifications (03/07) | ⏭ | iOS notification model + permission UX differs; Simulator handles APNS differently. Defer. |
 | §3 Tabs (03/08) | ⏳ | Compose-style pager — iOS equivalent should expose tabs via `XCUIElementTypeTabBar` or similar. |
 | §3 Camera (03/09) | ⏭ | iOS Simulator has no camera. Stub or skip via runtime probe. |
-| §3 Location (03/10) | ⏳ | Use `xcrun simctl set <udid> location lat,lng` to inject fixes. iOS location-permission dialog is a separate spec branch. |
+| §3 Location (03/10) | ⏳ | Use `xcrun simctl set <udid> location lat,lng` to inject fixes. iOS location-permission dialog is a separate spec branch. The Android-CI skip on TC-LO02–LO05 is **iOS-exempt** — the GPS-warm-up UIA2 crash is AVD-specific; on iOS the simulator + injected fixes should run the full granted path, and an iOS-green / Android-red split confirms the Android skip is a platform defect, not an app bug. |
 | §3 Dark Mode (03/11) | ⏳ | iOS dark mode toggles via system Appearance setting; in-app switch should still work. Pixel sampling tolerances may differ. |
 | §4 Products (04/01) | ⏳ | Detail page + add-to-cart. Snackbar equivalent on iOS is `XCUIElementTypeOther` overlay — different selector pattern. |
 | §4 Cart (04/02) | ⏳ | Chains off §4 Products. iOS rotation handling not needed (orientation lock is Android-specific). |
@@ -273,7 +273,7 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 
 ## 10. Location
 
-**Spec:** `tests/specs/03_nav/10_location.spec.js` (Pixel Tablet skipped — emulator-5556 GPS never emits fixes)
+**Spec:** `tests/specs/03_nav/10_location.spec.js` (Pixel Tablet skipped — emulator-5556 GPS never emits fixes; TC-LO02–LO05 also skipped on Android CI — see note below table)
 
 **Scope summary:**
 - **Granted Path** (TC-LO01–LO05) — OS dialog → "While using" grant → idle granted screen → Start Tracking + first history entry → 5 Start/Stop cycles accumulate ≥6 LIFO entries → re-entry persists permission but resets history.
@@ -289,6 +289,8 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 | **TC-LO06** | Single deny → "Location permission denied" + "Open Settings"; no Start Tracking / Current Location card | Permission Denial | ✅ | ⏭ Skipped |
 | **TC-LO07** | Tap Open Settings → `getCurrentPackage()` reports `com.android.settings`; back to app → denied state retained | Intent Verification + Return State | ✅ | ⏭ Skipped |
 | **TC-LO08** | Deny twice with leave+return between → 3rd entry has no dialog (permanent denial); denied state persists | Sequential Persistence | ✅ | ⏭ Skipped |
+
+> **Android CI:** TC-LO02–LO05 (the GPS-warm-up granted cascade) are `test.skip`-guarded on `process.env.CI && driver.isAndroid` (`SKIP_LO_GPS_REASON` in the spec) — the warm-up crashes UIA2 on the GHA Pixel-6 AVD and the dead-on-reload session cascades into Products/Checkout/Regression. Skipping LO02 alone is insufficient: LO03–LO05 build on LO02's granted state / re-run the same warm-up in replay. LO01 + LO06–LO08 still run on CI. The guard is iOS-exempt — once Location is wired into the iOS lane, an iOS-green / Android-red split confirms it is an AVD defect, not an app bug. The Pixel 8 / Pixel Tablet columns above reflect **local** device coverage (unchanged).
 
 ## 11. Dark Mode (cross-cutting smoke)
 
