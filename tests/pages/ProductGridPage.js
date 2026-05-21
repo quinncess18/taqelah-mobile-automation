@@ -212,8 +212,25 @@ class ProductGridPage extends BasePage {
 
   /**
    * Get attributes of the first visual product in the grid.
+   *
+   * iOS: a positional class-chain (`...Image[...]​[1]`) + waitForDisplayed
+   * proved unreliable — WDA returns the indexed node but reports it
+   * not-displayed even when the source XML has visible="true" (TC-C03/C05/C07,
+   * run 26198456906). The same predicate via $$ resolves the cards correctly
+   * (C04 passes on it), so iterate the $$ result and return the first visible
+   * priced card in document order (= top-left). Android keeps the positional
+   * selector path it already passes on.
    */
   async getFirstProductDetails() {
+    if (this.isIOS) {
+      const cards = await this.driver.$$(this.clickableItems);
+      for (const c of cards) {
+        if (!(await c.isDisplayed().catch(() => false))) continue;
+        const desc = await c.getAttribute(this.attrName);
+        if (desc && desc.includes('$')) return desc;
+      }
+      throw new Error('iOS: no visible priced product card found in grid');
+    }
     const firstProduct = await this.driver.$(this.firstProductCard);
     await firstProduct.waitForDisplayed({ timeout: 5000 });
     return await firstProduct.getAttribute(this.attrName);
