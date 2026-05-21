@@ -59,8 +59,14 @@ class NavMenuPage extends BasePage {
   }
 
   async open() {
-    const btn = await this.waitForDisplayed(this.navMenuBtn, 15000);
-    await btn.click();
+    // A left-edge deviceBack swipe can leave the Flutter Drawer open (the edge
+    // gesture opens the drawer), which covers the hamburger. If the drawer is
+    // already open (a nav row is visible), skip the toggle rather than timing
+    // out on the hidden hamburger.
+    if (!(await this.isVisible(this.navCart))) {
+      const btn = await this.waitForDisplayed(this.navMenuBtn, 15000);
+      await btn.click();
+    }
     await this.waitForPageLoad();
   }
 
@@ -69,7 +75,21 @@ class NavMenuPage extends BasePage {
    */
   async waitForPageLoad() {
     await this.driver.pause(800); // Standard drawer animation time
-    await this.waitForDisplayed(this.navHome);
+    // Anchor on Cart, not Home: on iOS the drawer ScrollView is not safe-area
+    // inset, so the top rows (user profile + Home) sit under the status bar /
+    // Dynamic Island and report not-displayed. Cart is the first row clear of
+    // the bar and is visible on both platforms.
+    await this.waitForDisplayed(this.navCart);
+  }
+
+  /**
+   * Close the drawer by swiping it back toward the left edge.
+   */
+  async close() {
+    const { width, height } = await this.driver.getWindowRect();
+    const midY = Math.round(height * 0.5);
+    await this.swipe(Math.round(width * 0.35), midY, 0, midY, 400);
+    await this.driver.pause(this.settlePause);
   }
 
   /**
