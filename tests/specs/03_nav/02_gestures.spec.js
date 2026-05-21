@@ -69,6 +69,16 @@ test.describe('Navigation - Gestures Interaction Suite (TC-M04-M08)', () => {
       );
       await driver.pause(1000);
 
+      // [M05-diag] iOS-only: capture target→landed mapping to calibrate the
+      // reorder drop offset (random target makes blind calibration impossible).
+      if (process.env.CI && driver.isIOS) {
+        let landed = -1;
+        for (let s = 1; s <= 5; s++) {
+          if (await gesturesPage.isVisible(gesturesPage.dragItemExact(s, cardId))) { landed = s; break; }
+        }
+        console.log(`[M05-diag] cardId=${cardId} fromSlot=${currentSlot} target=${targetSlot} landed=${landed}`);
+      }
+
       // Update state tracker (cards swap positions)
       positionOf[cardId] = targetSlot;
       positionOf[displacedCardId] = currentSlot;
