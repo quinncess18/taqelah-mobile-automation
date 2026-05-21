@@ -28,13 +28,17 @@ class GesturesPage extends BasePage {
     this.dragItem = (id) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("Drag Item ${id}")`
       : `-ios predicate string:name CONTAINS "Drag Item ${id}"`;
+    // iOS item name is "<position>\nDrag Item <id>" — the slot number is the
+    // LEADING char, so BEGINSWITH the position digit disambiguates it from the
+    // same digit appearing inside "Drag Item N" after the list is reshuffled
+    // (a plain CONTAINS collides, e.g. "4\nDrag Item 1" contains both 4 and 1).
     this.dragItemExact = (position, id) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("${position}\nDrag Item ${id}")`
-      : `-ios predicate string:name CONTAINS "${position}" AND name CONTAINS "Drag Item ${id}"`;
+      : `-ios predicate string:name BEGINSWITH "${position}" AND name CONTAINS "Drag Item ${id}"`;
     // Finds whatever card is currently occupying a given position slot
     this.dragSlot = (position) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("${position}\nDrag Item")`
-      : `-ios predicate string:name CONTAINS "${position}" AND name CONTAINS "Drag Item"`;
+      : `-ios predicate string:name BEGINSWITH "${position}" AND name CONTAINS "Drag Item"`;
 
     // Long Press Section
     this.sectionLongPress = this.isAndroid ? 'android=new UiSelector().description("Long Press")' : '~Long Press';
@@ -108,7 +112,42 @@ class GesturesPage extends BasePage {
 
      const startX = Math.round(sLoc.x + sSz.width * 0.5);
      const startY = Math.round(sLoc.y + sSz.height * 0.5);
-     const endY = Math.round(tLoc.y + tSz.height * 0.5);
+     const rawEndY = Math.round(tLoc.y + tSz.height * 0.5);
+
+     if (this.isIOS) {
+       // Flutter ReorderableList removes the dragged tile from the layout on
+       // pickup, so every tile below the source shifts UP by one row. Dragging
+       // to the target's pre-pickup centre therefore overshoots by ~one row on
+       // a downward move (run 26212030777: item landed a slot past target).
+       // Pull the drop point back by one row for downward moves; upward moves
+       // need no shift (tiles above the source don't move). Move in small
+       // settling steps so Flutter tracks the gap and drops on the intended slot.
+       const rowH = sSz.height;
+       const endY = rawEndY > startY ? rawEndY - rowH : rawEndY;
+       const steps = 6;
+       const stepActions = [];
+       for (let s = 1; s <= steps; s++) {
+         const y = Math.round(startY + (endY - startY) * (s / steps));
+         stepActions.push({ type: 'pointerMove', duration: 150, origin: 'viewport', x: startX, y });
+         stepActions.push({ type: 'pause', duration: 120 });
+       }
+       await this.driver.performActions([{
+         type: 'pointer', id: 'finger1', parameters: { pointerType: 'touch' },
+         actions: [
+           { type: 'pointerMove', duration: 0, x: startX, y: startY },
+           { type: 'pointerDown', button: 0 },
+           { type: 'pause', duration: 1800 },
+           { type: 'pointerMove', duration: 100, origin: 'viewport', x: startX, y: startY - 12 },
+           { type: 'pause', duration: 150 },
+           ...stepActions,
+           { type: 'pause', duration: 400 },
+           { type: 'pointerUp', button: 0 },
+         ]
+       }]);
+       await this.driver.releaseActions();
+       await this.driver.pause(this.settlePause);
+       return;
+     }
 
      await this.driver.performActions([{
        type: 'pointer', id: 'finger1', parameters: { pointerType: 'touch' },
@@ -117,7 +156,7 @@ class GesturesPage extends BasePage {
          { type: 'pointerDown', button: 0 },
          { type: 'pause', duration: 1500 },
          { type: 'pointerMove', duration: 50, origin: 'viewport', x: startX, y: startY - 20 },
-         { type: 'pointerMove', duration: 700, origin: 'viewport', x: startX, y: endY },
+         { type: 'pointerMove', duration: 700, origin: 'viewport', x: startX, y: rawEndY },
          { type: 'pause', duration: 200 },
          { type: 'pointerUp', button: 0 }
        ]
