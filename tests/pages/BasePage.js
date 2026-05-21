@@ -184,8 +184,16 @@ class BasePage {
     if (this.isAndroid) {
       await this.driver.execute('mobile: shell', { command: 'input', args: ['keyevent', '4'] });
     } else {
-      // iOS: XCUITest doesn't have a global back; we use driver.back() or app-specific logic
-      await this.driver.back();
+      // iOS: no hardware/global back, and driver.back() does NOT pop the
+      // Flutter Navigator — TC-L04's deviceBack is iOS-gated, so this path
+      // never actually ran on iOS until TC-C07, which failed: the app stayed
+      // on the grid and waitForPageLoad(Landing) timed out on ~Shop All
+      // (run 26204480641). Flutter renders Cupertino page transitions on iOS,
+      // so a left-edge back-swipe pops the pushed route. Start within a few px
+      // of the edge and drag past mid-screen.
+      const { width, height } = await this.driver.getWindowRect();
+      const y = Math.round(height * 0.5);
+      await this.swipe(3, y, Math.round(width * 0.6), y, 350);
     }
   }
 
