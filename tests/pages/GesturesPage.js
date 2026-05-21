@@ -115,15 +115,14 @@ class GesturesPage extends BasePage {
      const rawEndY = Math.round(tLoc.y + tSz.height * 0.5);
 
      if (this.isIOS) {
-       // Flutter ReorderableList removes the dragged tile from the layout on
-       // pickup, so every tile below the source shifts UP by one row. Dragging
-       // to the target's pre-pickup centre therefore overshoots by ~one row on
-       // a downward move (run 26212030777: item landed a slot past target).
-       // Pull the drop point back by one row for downward moves; upward moves
-       // need no shift (tiles above the source don't move). Move in small
-       // settling steps so Flutter tracks the gap and drops on the intended slot.
-       const rowH = sSz.height;
-       const endY = rawEndY > startY ? rawEndY - rowH : rawEndY;
+       // Drag the tile to the target slot's centre in small settling steps so
+       // Flutter's ReorderableList tracks the gap and drops on the intended
+       // slot. NO drop-offset compensation: the [M05-diag] mapping (run
+       // 26214052978) showed dragging to the target centre lands exactly on
+       // target — the earlier misses were the CONTAINS selector collision
+       // (now BEGINSWITH), not the drag. (A −1 row pull-back overshot the other
+       // way: target=4→landed=3, target=2→near-zero drag.)
+       const endY = rawEndY;
        const steps = 6;
        const stepActions = [];
        for (let s = 1; s <= steps; s++) {
