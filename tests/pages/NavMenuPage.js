@@ -17,40 +17,44 @@ class NavMenuPage extends BasePage {
       ? 'android=new UiSelector().className("android.widget.ScrollView")' 
       : '~nav-drawer';
 
+    // iOS: drawer items are Flutter Key()-less — Appium's `~` finder falls back
+    // to the visible-text `name`, so each `~<text>` mirrors the Android
+    // description (proven by LoginPage.logout()'s `~Logout` on iOS smoke).
     // Account Section
-    this.userProfile = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.ImageView").descriptionContains("@")' 
-      : '~user-profile';
-    
-    this.logoutBtn = this.isAndroid 
-      ? 'android=new UiSelector().description("Logout")' 
-      : '~logout-button';
+    this.userProfile = this.isAndroid
+      ? 'android=new UiSelector().className("android.widget.ImageView").descriptionContains("@")'
+      : '-ios predicate string:name CONTAINS "@"';
+
+    this.logoutBtn = this.isAndroid
+      ? 'android=new UiSelector().description("Logout")'
+      : '~Logout';
 
     // Main Navigation
-    this.navHome = this.isAndroid ? 'android=new UiSelector().description("Home")' : '~nav-home';
-    this.navCart = this.isAndroid ? 'android=new UiSelector().description("Cart")' : '~nav-cart';
-    this.navAbout = this.isAndroid ? 'android=new UiSelector().description("About")' : '~nav-about';
+    this.navHome = this.isAndroid ? 'android=new UiSelector().description("Home")' : '~Home';
+    this.navCart = this.isAndroid ? 'android=new UiSelector().description("Cart")' : '~Cart';
+    this.navAbout = this.isAndroid ? 'android=new UiSelector().description("About")' : '~About';
 
-    // Settings
-    this.darkModeToggle = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.Switch").description("Dark Mode")' 
-      : '~dark-mode-switch';
+    // Settings — iOS Flutter Switch surfaces as the only XCUIElementTypeSwitch
+    // on the drawer; isDarkModeActive() reads its `value` ("0"/"1").
+    this.darkModeToggle = this.isAndroid
+      ? 'android=new UiSelector().className("android.widget.Switch").description("Dark Mode")'
+      : '-ios predicate string:type == "XCUIElementTypeSwitch"';
 
     // Test Suite (Test Screens)
-    this.navGestures = this.isAndroid ? 'android=new UiSelector().description("Gestures")' : '~nav-gestures';
-    this.navWebView = this.isAndroid ? 'android=new UiSelector().description("WebView")' : '~nav-webview';
-    this.navDialogs = this.isAndroid ? 'android=new UiSelector().description("Dialogs & Alerts")' : '~nav-dialogs';
-    this.navForm = this.isAndroid ? 'android=new UiSelector().description("Form Validation")' : '~nav-form';
-    this.navPermissions = this.isAndroid ? 'android=new UiSelector().description("Permissions")' : '~nav-permissions';
-    this.navNotifications = this.isAndroid ? 'android=new UiSelector().description("Notifications")' : '~nav-notifications';
-    this.navTabs = this.isAndroid ? 'android=new UiSelector().description("Tabs & Navigation")' : '~nav-tabs';
-    this.navCamera = this.isAndroid ? 'android=new UiSelector().description("Camera")' : '~nav-camera';
-    this.navLocation = this.isAndroid ? 'android=new UiSelector().description("Location")' : '~nav-location';
+    this.navGestures = this.isAndroid ? 'android=new UiSelector().description("Gestures")' : '~Gestures';
+    this.navWebView = this.isAndroid ? 'android=new UiSelector().description("WebView")' : '~WebView';
+    this.navDialogs = this.isAndroid ? 'android=new UiSelector().description("Dialogs & Alerts")' : '~Dialogs & Alerts';
+    this.navForm = this.isAndroid ? 'android=new UiSelector().description("Form Validation")' : '~Form Validation';
+    this.navPermissions = this.isAndroid ? 'android=new UiSelector().description("Permissions")' : '~Permissions';
+    this.navNotifications = this.isAndroid ? 'android=new UiSelector().description("Notifications")' : '~Notifications';
+    this.navTabs = this.isAndroid ? 'android=new UiSelector().description("Tabs & Navigation")' : '~Tabs & Navigation';
+    this.navCamera = this.isAndroid ? 'android=new UiSelector().description("Camera")' : '~Camera';
+    this.navLocation = this.isAndroid ? 'android=new UiSelector().description("Location")' : '~Location';
 
     // Headers / Non-clickable
-    this.testScreensHeader = this.isAndroid 
-      ? 'android=new UiSelector().description("TEST SCREENS")' 
-      : '~test-screens-header';
+    this.testScreensHeader = this.isAndroid
+      ? 'android=new UiSelector().description("TEST SCREENS")'
+      : '~TEST SCREENS';
 
   }
 

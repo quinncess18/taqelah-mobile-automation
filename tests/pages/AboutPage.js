@@ -10,20 +10,22 @@ class AboutPage extends BasePage {
     // Header
     this.title = this.isAndroid ? 'android=new UiSelector().description("About")' : '~About';
 
+    // iOS: name-fallback on visible text for exact strings; CONTAINS predicate
+    // for partial matches (the `~` finder is exact-match only).
     // Above-fold Content
-    this.subtitle = this.isAndroid ? 'android=new UiSelector().description("by taqelah! community")' : '~about-subtitle';
-    this.version = this.isAndroid ? 'android=new UiSelector().descriptionContains("Version")' : '~version-info';
-    this.description = this.isAndroid ? 'android=new UiSelector().descriptionContains("Master Mobile UI Automation")' : '~about-description';
-    this.featureList = this.isAndroid ? 'android=new UiSelector().descriptionContains("What You Can Practice")' : '~about-features';
+    this.subtitle = this.isAndroid ? 'android=new UiSelector().description("by taqelah! community")' : '~by taqelah! community';
+    this.version = this.isAndroid ? 'android=new UiSelector().descriptionContains("Version")' : '-ios predicate string:name CONTAINS "Version"';
+    this.description = this.isAndroid ? 'android=new UiSelector().descriptionContains("Master Mobile UI Automation")' : '-ios predicate string:name CONTAINS "Master Mobile UI Automation"';
+    this.featureList = this.isAndroid ? 'android=new UiSelector().descriptionContains("What You Can Practice")' : '-ios predicate string:name CONTAINS "What You Can Practice"';
 
     // Below-fold Content
-    this.footerUrl = this.isAndroid ? 'android=new UiSelector().description("www.taqelah.sg")' : '~official-url';
-    this.footerFlutter = this.isAndroid ? 'android=new UiSelector().description("Built with Flutter")' : '~flutter-logo';
+    this.footerUrl = this.isAndroid ? 'android=new UiSelector().description("www.taqelah.sg")' : '~www.taqelah.sg';
+    this.footerFlutter = this.isAndroid ? 'android=new UiSelector().description("Built with Flutter")' : '~Built with Flutter';
 
-    // Settings
+    // Settings — iOS Flutter Switch is the only XCUIElementTypeSwitch on About.
     this.darkModeSwitch = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.Switch").description("Dark Mode")'
-      : '~dark-mode-switch';
+      : '-ios predicate string:type == "XCUIElementTypeSwitch"';
   }
 
   async waitForPageLoad() {
@@ -45,8 +47,10 @@ class AboutPage extends BasePage {
 
   async isDarkModeActive() {
     const sw = await this.driver.$(this.darkModeSwitch);
-    const checked = await sw.getAttribute('checked');
-    return checked === 'true';
+    // Android Switch exposes `checked`; iOS exposes `value` ("0"/"1").
+    const attr = this.isAndroid ? 'checked' : 'value';
+    const state = await sw.getAttribute(attr);
+    return state === 'true' || state === '1';
   }
 
   /**
