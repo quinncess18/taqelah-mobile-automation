@@ -184,16 +184,22 @@ class BasePage {
     if (this.isAndroid) {
       await this.driver.execute('mobile: shell', { command: 'input', args: ['keyevent', '4'] });
     } else {
-      // iOS: no hardware/global back, and driver.back() does NOT pop the
-      // Flutter Navigator — TC-L04's deviceBack is iOS-gated, so this path
-      // never actually ran on iOS until TC-C07, which failed: the app stayed
-      // on the grid and waitForPageLoad(Landing) timed out on ~Shop All
-      // (run 26204480641). Flutter renders Cupertino page transitions on iOS,
-      // so a left-edge back-swipe pops the pushed route. Start within a few px
-      // of the edge and drag past mid-screen.
-      const { width, height } = await this.driver.getWindowRect();
-      const y = Math.round(height * 0.5);
-      await this.swipe(3, y, Math.round(width * 0.6), y, 350);
+      // iOS: prefer the app-bar Back button — it's deterministic and avoids the
+      // left-edge drawer-open conflict. Pushed detail pages (Cart, About,
+      // Gestures, …) expose a "Back" button (run 26210913562 confirmed it on
+      // Cart/About); the flaky edge-swipe was leaving those pages off-Home and
+      // breaking the next module's entry. Fall back to a left-edge Cupertino
+      // back-swipe only on screens with no Back button (e.g. the catalog grid,
+      // which shows a hamburger) — driver.back() does NOT pop Flutter on iOS.
+      const backBtn = await this.driver.$(this.backBtn);
+      const hasBack = await backBtn.isDisplayed().catch(() => false);
+      if (hasBack) {
+        await backBtn.click();
+      } else {
+        const { width, height } = await this.driver.getWindowRect();
+        const y = Math.round(height * 0.5);
+        await this.swipe(3, y, Math.round(width * 0.6), y, 350);
+      }
     }
   }
 

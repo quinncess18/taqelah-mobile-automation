@@ -14,8 +14,14 @@ test.describe('Navigation - Gestures Interaction Suite (TC-M04-M08)', () => {
     navMenu = new NavMenuPage(driver);
     gesturesPage = new GesturesPage(driver);
 
-    const onHome = await landingPage.isVisible(landingPage.shopAllBtn);
-    if (!onHome) await driver.back();
+    let onHome = await landingPage.isVisible(landingPage.shopAllBtn);
+    let tries = 0;
+    while (!onHome && tries < 3) {
+      await landingPage.deviceBack(); // edge-swipe / Back button; driver.back() no-ops on iOS
+      await driver.pause(1000);
+      onHome = await landingPage.isVisible(landingPage.shopAllBtn);
+      tries++;
+    }
 
     await navMenu.open();
     await navMenu.navigateTo(navMenu.navGestures);
