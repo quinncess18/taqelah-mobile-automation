@@ -83,12 +83,24 @@ class NavMenuPage extends BasePage {
   }
 
   /**
-   * Close the drawer by swiping it back toward the left edge.
+   * Close the drawer by tapping the modal scrim to the right of it.
+   * Swiping the drawer back to the edge proved unreliable (run 26208188082:
+   * drawer stayed open). The Flutter drawer is ~304px wide and the scrim
+   * (a full-screen "Dismiss" element) is only actionable in the band past it,
+   * so tap at 90% width — comfortably right of the drawer — to dismiss.
    */
   async close() {
     const { width, height } = await this.driver.getWindowRect();
-    const midY = Math.round(height * 0.5);
-    await this.swipe(Math.round(width * 0.35), midY, 0, midY, 400);
+    await this.driver.performActions([{
+      type: 'pointer',
+      id: 'finger1',
+      parameters: { pointerType: 'touch' },
+      actions: [
+        { type: 'pointerMove', duration: 0, x: Math.round(width * 0.9), y: Math.round(height * 0.5) },
+        { type: 'pointerDown', button: 0 },
+        { type: 'pointerUp', button: 0 },
+      ],
+    }]);
     await this.driver.pause(this.settlePause);
   }
 
