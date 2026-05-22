@@ -137,7 +137,9 @@ class GesturesPage extends BasePage {
            { type: 'pointerDown', button: 0 },
            { type: 'pause', duration: 1800 },
            { type: 'pointerMove', duration: 100, origin: 'viewport', x: startX, y: startY - 12 },
-           { type: 'pause', duration: 150 },
+           // Hold after the lift so Flutter fully enters drag-mode before moving —
+           // on the cold CI sim too short a pause here lets the card fall back home.
+           { type: 'pause', duration: 500 },
            ...stepActions,
            { type: 'pause', duration: 400 },
            { type: 'pointerUp', button: 0 },
@@ -161,6 +163,37 @@ class GesturesPage extends BasePage {
        ]
      }]);
    }
+
+  /**
+   * iOS: returns the slot (1..5) currently holding the given card id, or -1.
+   * Reads the live a11y tree via the proven position+id selector — no positional
+   * bookkeeping, so the widget's insert-and-shift reorder can't drift it.
+   */
+  async currentSlotOf(cardId) {
+    for (let s = 1; s <= 5; s++) {
+      if (await this.isVisible(this.dragItemExact(s, cardId))) return s;
+    }
+    return -1;
+  }
+
+  /**
+   * iOS: drag a card to a target slot, retrying the lift until it engages.
+   * On the cold CI sim a long-press can fire before the previous drop finishes
+   * settling, so the picked-up card falls back into its own slot. Each attempt
+   * settles first, performs the drag, then confirms the card actually landed at
+   * the target before giving up.
+   * @returns {Promise<{moved: boolean, attempts: number}>}
+   */
+  async reorderWithRetry(cardId, targetSlot, maxAttempts = 3) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await this.driver.pause(this.settlePause); // let any prior drop animation finish before the next lift
+      await this.reorderItem(this.dragItem(cardId), this.dragSlot(targetSlot));
+      if (await this.isVisible(this.dragItemExact(targetSlot, cardId))) {
+        return { moved: true, attempts: attempt };
+      }
+    }
+    return { moved: false, attempts: maxAttempts };
+  }
 
   /**
    * Encapsulated Long Press

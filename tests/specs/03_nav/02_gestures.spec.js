@@ -53,7 +53,37 @@ test.describe('Navigation - Gestures Interaction Suite (TC-M04-M08)', () => {
       expect(await gesturesPage.isVisible(gesturesPage.dragItemExact(i, i))).toBe(true);
     }
 
-    // State tracker: positionOf[cardId] = currentSlot
+    if (driver.isIOS) {
+      // iOS: on the cold CI sim the reorder list is slow to settle after a drop,
+      // so the next long-press can fire before it's ready — the picked-up card
+      // lifts but falls back into its own slot instead of relocating. We still
+      // test the REAL action (each card must land at the slot it was dragged to)
+      // but retry the lift until it engages. The card's live slot is read each
+      // round (dragItemExact), not tracked in a swap model — the widget shifts,
+      // it doesn't swap, so any predicted bookkeeping would drift. Page reset →
+      // ascending order is covered by TC-M08.
+      for (const cardId of [1, 2, 3, 4, 5]) {
+        const currentSlot = await gesturesPage.currentSlotOf(cardId);
+        const choices = [1, 2, 3, 4, 5].filter(s => s !== currentSlot);
+        const targetSlot = choices[Math.floor(Math.random() * choices.length)];
+
+        const { moved, attempts } = await gesturesPage.reorderWithRetry(cardId, targetSlot, 3);
+        if (process.env.CI) {
+          console.log(`[M05] cardId=${cardId} ${currentSlot}->${targetSlot} attempts=${attempts} moved=${moved}`);
+        }
+        // Verify the actual action landed: card is now at its target slot
+        expect(moved).toBe(true);
+        expect(await gesturesPage.isVisible(gesturesPage.dragItemExact(targetSlot, cardId))).toBe(true);
+      }
+
+      // All 5 position slots still present (ascending indexes intact)
+      for (let i = 1; i <= 5; i++) {
+        expect(await gesturesPage.isVisible(gesturesPage.dragSlot(i))).toBe(true);
+      }
+      return; // No exit — continue to TC-M06 on the same page
+    }
+
+    // Android: per-step exact-slot verification via swap-model state tracker.
     const positionOf = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 };
 
     for (const cardId of [1, 2, 3, 4, 5]) {
@@ -68,16 +98,6 @@ test.describe('Navigation - Gestures Interaction Suite (TC-M04-M08)', () => {
         gesturesPage.dragSlot(targetSlot)
       );
       await driver.pause(1000);
-
-      // [M05-diag] iOS-only: capture target→landed mapping to calibrate the
-      // reorder drop offset (random target makes blind calibration impossible).
-      if (process.env.CI && driver.isIOS) {
-        let landed = -1;
-        for (let s = 1; s <= 5; s++) {
-          if (await gesturesPage.isVisible(gesturesPage.dragItemExact(s, cardId))) { landed = s; break; }
-        }
-        console.log(`[M05-diag] cardId=${cardId} fromSlot=${currentSlot} target=${targetSlot} landed=${landed}`);
-      }
 
       // Update state tracker (cards swap positions)
       positionOf[cardId] = targetSlot;
