@@ -155,7 +155,7 @@ class GesturesPage extends BasePage {
    *   cx:    shared row centre x
    *   slotY: centre-y for any slot 1..5
    */
-  async iosDragLayout(maxTries = 5) {
+  async iosDragLayout(maxTries = 6) {
     let slotCard = {}; // slot(1..5) -> cardId   (visible only)
     let slotCy = {};   // slot(1..5) -> centre y (visible only)
     let cx = null;
@@ -174,9 +174,12 @@ class GesturesPage extends BasePage {
           }
         }
       }
-      // Settled = at most ONE slot unresolved (the just-displaced card's (0,0)
-      // node). >1 missing means the list is still re-rendering — pause and re-scan.
-      if (Object.keys(slotCard).length >= 4) break;
+      // Clean read = resolved slots are all DISTINCT cards (no duplicate) AND at
+      // most one slot empty (the displaced card's (0,0) node). A duplicate means
+      // a card is mid-animation showing in two slots — still settling, so re-scan.
+      const resolved = Object.keys(slotCard).length;
+      const distinct = new Set(Object.values(slotCard)).size;
+      if (resolved >= 4 && resolved === distinct) break;
       await this.driver.pause(this.settlePause);
     }
     // Fill the single empty slot (if any) with the one missing card by elimination.
