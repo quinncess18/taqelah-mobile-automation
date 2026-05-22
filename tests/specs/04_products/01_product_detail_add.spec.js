@@ -79,13 +79,35 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     }
   }
 
+  // Open Product Detail from a grid pick, tolerant of the Flutter+UIA2 cold-tap
+  // race: on a slow CI emulator the first tap can be consumed before the card's
+  // gesture handler is wired, so the route never pushes and detailPage's 60s
+  // waitForPageLoad still times out on a fully-rendered grid (CI run
+  // 26276972532: PD03 sat on the Casual grid, badge correct, after the full
+  // wait — the tap, not the render, was the miss). Re-pick + re-tap, but only
+  // while we're still on the grid, so we never re-tap a slow-but-loading Detail.
+  async function openDetailFromPick(driver, pick, attempts = 3) {
+    for (let i = 0; i < attempts; i++) {
+      await pick.el.click();
+      try {
+        await detailPage.waitForPageLoad();
+        return pick;
+      } catch (err) {
+        const stillOnGrid = await gridPage.isVisible(gridPage.firstProductCard);
+        if (i === attempts - 1 || !stillOnGrid) throw err;
+        // Tap didn't route. The prior element ref may be stale → re-pick + retry.
+        pick = await gridPage.pickRandomProduct();
+      }
+    }
+    return pick;
+  }
+
   // ─── Per-TC action helpers (no assertions; mutate state + capture data) ───
   async function actionsPD01(driver) {
     await landingPage.navigateToShopAll();
     await gridPage.waitForPageLoad();
-    const pick = await gridPage.pickRandomProduct();
-    await pick.el.click();
-    await detailPage.waitForPageLoad();
+    let pick = await gridPage.pickRandomProduct();
+    pick = await openDetailFromPick(driver, pick);
     shopAllPick = { name: pick.name, price: pick.price };
     return pick;
   }
@@ -119,9 +141,8 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     await landingPage.selectCategory('Casual');
     await gridPage.waitForPageLoad();
     casualGridBadge = await gridPage.getCartBadgeCount();
-    const pick = await gridPage.pickRandomProduct();
-    await pick.el.click();
-    await detailPage.waitForPageLoad();
+    let pick = await gridPage.pickRandomProduct();
+    pick = await openDetailFromPick(driver, pick);
     casualPick = { name: pick.name };
     return pick;
   }

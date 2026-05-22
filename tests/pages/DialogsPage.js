@@ -158,13 +158,17 @@ class DialogsPage extends BasePage {
       ? 'android=new UiSelector().descriptionContains("Select time")'
       : '-ios predicate string:name CONTAINS "Select time"';
 
+    // iOS dial hour/minute rings expose "Select hours 8" / "Select minutes 40"
+    // on the `value` attribute, NOT `name` (confirmed via D06 diagnostic XML) —
+    // so match on value. (The header carries "…\nSelect time" on name, hence
+    // timePickerTitle stays a name predicate.)
     this.timePickerHours = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("Select hours")'
-      : '-ios predicate string:name CONTAINS "Select hours"';
+      : '-ios predicate string:value CONTAINS "Select hours"';
 
     this.timePickerMinutes = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("Select minutes")'
-      : '-ios predicate string:name CONTAINS "Select minutes"';
+      : '-ios predicate string:value CONTAINS "Select minutes"';
 
     this.timePickerAm = this.isAndroid
       ? 'android=new UiSelector().description("AM")'

@@ -171,7 +171,12 @@ const test = base.extend({
         ]);
         const srcPath = path.join(outDir, `${slug}-source.xml`);
         fs.writeFileSync(srcPath, src, 'utf8');
-        console.log(`[diag] wrote ${srcPath} (${src.length} bytes)`);
+        // Attach to the Playwright HTML report so the a11y tree renders inline
+        // on the failed test, not just in the raw diagnostics/ folder. Works
+        // uniformly for every failed (or flaky-failed-attempt) TC on both
+        // platforms — this fixture is the single point all failures pass through.
+        try { await testInfo.attach('failure-source.xml', { path: srcPath, contentType: 'application/xml' }); } catch {}
+        console.log(`[diag] wrote + attached ${srcPath} (${src.length} bytes)`);
       } catch (err) {
         console.warn(`[diag] page source dump failed: ${err.message}`);
       }
@@ -184,7 +189,8 @@ const test = base.extend({
         ]);
         const pngPath = path.join(outDir, `${slug}-screenshot.png`);
         fs.writeFileSync(pngPath, Buffer.from(png, 'base64'));
-        console.log(`[diag] wrote ${pngPath}`);
+        try { await testInfo.attach('failure-screenshot.png', { path: pngPath, contentType: 'image/png' }); } catch {}
+        console.log(`[diag] wrote + attached ${pngPath}`);
       } catch (err) {
         console.warn(`[diag] screenshot failed: ${err.message}`);
       }
