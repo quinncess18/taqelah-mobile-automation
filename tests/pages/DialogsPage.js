@@ -232,9 +232,14 @@ class DialogsPage extends BasePage {
       ? 'android=new UiSelector().description("This is a full-screen dialog")'
       : '~This is a full-screen dialog';
 
+    // iOS: the full-screen dialog's close control is a NAMELESS icon button (no
+    // name/label) — confirmed via D08 diagnostic XML, which has exactly one
+    // XCUIElementTypeButton and no "Back" node, so `~Back` never resolved and the
+    // dialog never closed. Target the lone visible button (same nameless-button
+    // pattern as LoginPage.passwordToggle).
     this.fullScreenBackBtn = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.Button").instance(0)'
-      : '~Back';
+      : '-ios predicate string:type == "XCUIElementTypeButton" AND visible == 1';
 
     // ── Shared Dismiss Overlay ──
     this.dismissOverlay = this.isAndroid

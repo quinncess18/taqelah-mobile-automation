@@ -59,6 +59,13 @@ jobs:
             # Appium instrumentation init fails). Grants survive the test run.
             adb shell pm grant io.appium.settings android.permission.ACCESS_FINE_LOCATION || true
             adb shell pm grant io.appium.settings android.permission.ACCESS_COARSE_LOCATION || true
+            # Suppress system ANR/crash dialogs. On the resource-starved cold-boot
+            # runner the Pixel Launcher ANRs and its "isn't responding / Wait /
+            # Close app" dialog OVERLAYS the app, hiding the login fields — the
+            # confirmed SM01 root cause + downstream cascade (run 26279266560).
+            # hide_error_dialogs=1 stops the overlay suite-wide; the smoke warm-up
+            # also dismisses it defensively in case it slips through.
+            adb shell settings put global hide_error_dialogs 1 || true
             # DEVICE_0_SETTLE_PAUSE=1500 (bumped from default 800ms) — the CI
             # emulator is slower than local; Flutter rendering after gestures
             # (pinch-zoom) and form submit toast can lag past the local-tuned

@@ -25,9 +25,36 @@ const { CatalogLandingPage } = require('../../pages/CatalogLandingPage');
 // screen is ready (≈free on a warm boot) and NEVER throws — a pathologically
 // slow AVD still falls through to the test body's own waitForPageLoad + the
 // _failureDiagnostic dump, so the canonical failure/artifact is preserved.
+//
+// Confirmed SM01 root cause (run 26279266560 dump): the resource-starved
+// cold-boot CI emulator ANRs the Pixel Launcher, and its "<App> isn't responding
+// / Wait / Close app" SYSTEM dialog overlays our app — the login screen renders
+// fine *behind* it, but the dialog hides the fields and intercepts taps. CI now
+// prevents this suite-wide via `hide_error_dialogs 1`; this warm-up dismisses it
+// defensively each iteration (covers any that slip through, and local boots).
+
+// Dismiss an Android system ANR ("isn't responding") dialog if present by
+// tapping "Wait" (least disruptive; "Close app" as fallback). Android-only —
+// iOS has no ANR. Best-effort, never throws.
+async function dismissSystemAnr(driver) {
+  for (const label of ['Wait', 'Close app']) {
+    try {
+      const btn = await driver.$(`android=new UiSelector().text("${label}")`);
+      if (await btn.isDisplayed()) {
+        await btn.click();
+        await driver.pause(500);
+        return true;
+      }
+    } catch { /* not present */ }
+  }
+  return false;
+}
+
 async function warmUpLoginScreen(loginPage, driver, budgetMs = 60000) {
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
+    // Clear a launcher-ANR overlay (covers the login fields on cold CI boots).
+    if (driver.isAndroid) await dismissSystemAnr(driver);
     if ((await loginPage.isVisible(loginPage.title)) &&
         (await loginPage.isVisible(loginPage.usernameField))) {
       return;

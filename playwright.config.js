@@ -12,10 +12,16 @@ module.exports = defineConfig({
   forbidOnly: !!process.env.CI,
   /* 2 retries on CI to absorb emulator-induced flakiness (cold-boot
    * Pixel 6 on a hardware-constrained runner is intermittently slow on
-   * Flutter rendering, form submit toast, dialog dismiss animation). Local
-   * runs stay at 0 — flakes there indicate a real fix is needed. */
-  retries: process.env.CI ? 2 : 0,
-  /* Stop on first failure locally to save time */
+   * Flutter rendering, form submit toast, dialog dismiss animation).
+   * Local runs get 1 retry: enough to absorb the same Mode-A render-lag
+   * blips (which pass on a warm retry) so a full regression completes
+   * instead of aborting on one isolated flake — while Playwright still
+   * LABELS the retried test "flaky" (+ keeps its attempt-0 dump), so the
+   * signal isn't hidden. A real bug fails both attempts → counts as a
+   * failure → maxFailures:1 still aborts immediately. */
+  retries: process.env.CI ? 2 : 1,
+  /* Stop on the first REAL failure locally (a flaky-then-passed test does
+   * not count toward maxFailures), to save time. */
   maxFailures: process.env.CI ? 0 : 1,
   
   /* Single worker — devices run sequentially to avoid Appium port
