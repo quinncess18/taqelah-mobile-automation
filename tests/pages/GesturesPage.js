@@ -102,23 +102,22 @@ class GesturesPage extends BasePage {
   }
 
   /**
-   * Returns the first DISPLAYED element matching the selector, or the plain
-   * first match if none report displayed. After a reorder iOS leaves a
-   * non-displayed proxy/ghost node for the displaced top card near the screen
-   * origin; the default $() (first match in tree) grabs it and reports bogus
-   * coords (~61,11), so source/target resolution must skip to the visible one.
+   * Returns the first DISPLAYED element matching the selector, or null if none
+   * report displayed. After a reorder the card in the TOP slot reports
+   * visible="false" at (0,0) in the iOS a11y tree, so only the genuinely
+   * on-screen rows (slots 2..5) resolve here — used to read the visible layout.
    */
   async firstDisplayedEl(selector) {
     const els = await this.driver.$$(selector);
     for (const el of els) {
       try { if (await el.isDisplayed()) return el; } catch { /* stale, skip */ }
     }
-    return await this.driver.$(selector); // fallback: let caller fail loudly
+    return null;
   }
 
   async reorderItem(sourceSelector, targetSelector) {
-     const source = this.isIOS ? await this.firstDisplayedEl(sourceSelector) : await this.driver.$(sourceSelector);
-     const target = this.isIOS ? await this.firstDisplayedEl(targetSelector) : await this.driver.$(targetSelector);
+     const source = await this.driver.$(sourceSelector);
+     const target = await this.driver.$(targetSelector);
 
      const sLoc = await source.getLocation();
      const sSz = await source.getSize();
@@ -128,22 +127,6 @@ class GesturesPage extends BasePage {
      const startX = Math.round(sLoc.x + sSz.width * 0.5);
      const startY = Math.round(sLoc.y + sSz.height * 0.5);
      const rawEndY = Math.round(tLoc.y + tSz.height * 0.5);
-
-     if (this.isIOS) {
-       // iOS-native long-press-drag. Raw W3C performActions chains only ever
-       // completed ONE reorder per test — every later chain no-opped regardless
-       // of target, retries, or pointer-state resets. The native gesture
-       // re-initializes cleanly per call. `duration` is the press hold (s) that
-       // triggers Flutter's reorder mode before the drag begins.
-       const endY = rawEndY;
-       await this.driver.execute('mobile: dragFromToForDuration', {
-         duration: 1.6,
-         fromX: startX, fromY: startY,
-         toX: startX,   toY: endY,
-       });
-       await this.driver.pause(this.settlePause);
-       return { startX, startY, endY }; // geometry for [M05] diag
-     }
 
      await this.driver.performActions([{
        type: 'pointer', id: 'finger1', parameters: { pointerType: 'touch' },
@@ -160,50 +143,55 @@ class GesturesPage extends BasePage {
    }
 
   /**
-   * True if ANY element matching the selector is displayed. Ghost-aware: a plain
-   * isVisible() inspects only the first tree match, which after a reorder can be
-   * the non-displayed proxy node — masking the real, visible card.
+   * iOS: derive the drag-row layout from the VISIBLE rows (slots 2..5). After a
+   * reorder the card displaced into slot 1 reports visible="false" at (0,0) in
+   * the a11y tree (confirmed via diagnostic XML), so its position is extrapolated
+   * from siblings (even row pitch) and its id inferred by elimination — never
+   * read from its own broken node.
+   * @returns {Promise<{order:number[], cx:number, slotY:(s:number)=>number}>}
+   *   order: cardId at each slot [slot1..slot5] (slot1 by elimination), 0 if unknown
+   *   cx:    shared row centre x
+   *   slotY: centre-y for any slot 1..5
    */
-  async isDisplayedAny(selector) {
-    const els = await this.driver.$$(selector);
-    for (const el of els) {
-      try { if (await el.isDisplayed()) return true; } catch { /* stale, skip */ }
-    }
-    return false;
-  }
-
-  /**
-   * iOS: returns the card id occupying each slot 1..5 (index 0 = slot1), 0 where
-   * unresolved. Reads the live a11y tree via the proven position+id selector — no
-   * positional bookkeeping, so the widget's insert-and-shift reorder can't drift it.
-   */
-  async readOrder() {
-    const order = [];
-    for (let s = 1; s <= 5; s++) {
-      let id = 0;
+  async iosDragLayout() {
+    const rowCard = {}; // slot(2..5) -> cardId
+    const rowCy = {};   // slot(2..5) -> centre y
+    let cx = null;
+    for (let s = 2; s <= 5; s++) {
       for (let c = 1; c <= 5; c++) {
-        if (await this.isDisplayedAny(this.dragItemExact(s, c))) { id = c; break; }
+        const el = await this.firstDisplayedEl(this.dragItemExact(s, c));
+        if (el) {
+          const l = await el.getLocation();
+          const z = await el.getSize();
+          rowCard[s] = c;
+          rowCy[s] = Math.round(l.y + z.height / 2);
+          cx = Math.round(l.x + z.width / 2);
+          break;
+        }
       }
-      order.push(id);
     }
-    return order;
+    const present = Object.values(rowCard);
+    const slot1Card = [1, 2, 3, 4, 5].find(c => !present.includes(c)) || 0;
+    const order = [slot1Card, rowCard[2] || 0, rowCard[3] || 0, rowCard[4] || 0, rowCard[5] || 0];
+
+    const ref = Object.keys(rowCy).map(Number).sort((a, b) => a - b);
+    const pitch = ref.length >= 2 ? (rowCy[ref[1]] - rowCy[ref[0]]) / (ref[1] - ref[0]) : 64;
+    const slotY = (slot) => Math.round(rowCy[ref[0]] + (slot - ref[0]) * pitch);
+    return { order, cx, slotY };
   }
 
   /**
-   * iOS: drag a card to a target slot, retrying until the card actually lands
-   * there. Settles before each attempt, performs the native drag, then confirms.
-   * @returns {Promise<{moved: boolean, attempts: number, geo: object|null}>}
+   * iOS: long-press-drag from one slot-centre y to another at the shared row x,
+   * via the iOS-native gesture. Coordinates come from iosDragLayout (sibling-
+   * derived), bypassing the broken top-slot a11y frame.
    */
-  async reorderWithRetry(cardId, targetSlot, maxAttempts = 3) {
-    let geo = null;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      await this.driver.pause(this.settlePause); // let any prior drop animation finish first
-      geo = await this.reorderItem(this.dragItem(cardId), this.dragSlot(targetSlot));
-      if (await this.isDisplayedAny(this.dragItemExact(targetSlot, cardId))) {
-        return { moved: true, attempts: attempt, geo };
-      }
-    }
-    return { moved: false, attempts: maxAttempts, geo };
+  async iosReorder(cx, fromY, toY) {
+    await this.driver.execute('mobile: dragFromToForDuration', {
+      duration: 1.6,
+      fromX: cx, fromY,
+      toX: cx,   toY,
+    });
+    await this.driver.pause(this.settlePause);
   }
 
   /**

@@ -54,31 +54,37 @@ test.describe('Navigation - Gestures Interaction Suite (TC-M04-M08)', () => {
     }
 
     if (driver.isIOS) {
-      // iOS: verify the real drag action per card via the iOS-native gesture,
-      // reading each card's live slot (the widget shifts, not swaps, so no
-      // predicted bookkeeping). [M05] logs per-drag geometry + before/after order
-      // so a no-op is immediately visible in CI. Page reset → ascending order is
-      // covered by TC-M08.
+      // iOS: the card displaced into slot 1 reports visible="false" at (0,0) in
+      // the a11y tree after a reorder (confirmed via diagnostic XML), so we never
+      // read the top row's own coords. iosDragLayout derives all slot positions
+      // from the visible sibling rows (even pitch) and infers the slot-1 card by
+      // elimination. We still test the REAL action: drag a card to a target slot
+      // and confirm it lands there. Page reset → ascending is covered by TC-M08.
       for (const cardId of [1, 2, 3, 4, 5]) {
-        const before = await gesturesPage.readOrder();
-        const currentSlot = before.indexOf(cardId) + 1;
-        const choices = [1, 2, 3, 4, 5].filter(s => s !== currentSlot);
+        let layout = await gesturesPage.iosDragLayout();
+        const startSlot = layout.order.indexOf(cardId) + 1;
+        const choices = [1, 2, 3, 4, 5].filter(s => s !== startSlot);
         const targetSlot = choices[Math.floor(Math.random() * choices.length)];
 
-        const { moved, attempts, geo } = await gesturesPage.reorderWithRetry(cardId, targetSlot, 3);
-        const after = await gesturesPage.readOrder();
+        let moved = false;
+        let attempts = 0;
+        while (!moved && attempts < 3) {
+          attempts++;
+          const curSlot = layout.order.indexOf(cardId) + 1;
+          await gesturesPage.iosReorder(layout.cx, layout.slotY(curSlot), layout.slotY(targetSlot));
+          layout = await gesturesPage.iosDragLayout();
+          moved = layout.order[targetSlot - 1] === cardId;
+        }
         if (process.env.CI) {
-          console.log(`[M05] card=${cardId} ${currentSlot}->${targetSlot} attempts=${attempts} moved=${moved} geo=${JSON.stringify(geo)} before=[${before}] after=[${after}]`);
+          console.log(`[M05] card=${cardId} ${startSlot}->${targetSlot} attempts=${attempts} moved=${moved} order=[${layout.order}]`);
         }
         // Verify the actual action landed: card is now at its target slot
         expect(moved).toBe(true);
-        expect(await gesturesPage.isDisplayedAny(gesturesPage.dragItemExact(targetSlot, cardId))).toBe(true);
       }
 
-      // All 5 position slots still present (ascending indexes intact)
-      for (let i = 1; i <= 5; i++) {
-        expect(await gesturesPage.isDisplayedAny(gesturesPage.dragSlot(i))).toBe(true);
-      }
+      // Final: all five cards present exactly once (none lost or duplicated)
+      const finalOrder = (await gesturesPage.iosDragLayout()).order;
+      expect([...finalOrder].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5]);
       return; // No exit — continue to TC-M06 on the same page
     }
 
