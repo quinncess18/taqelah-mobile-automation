@@ -4,7 +4,7 @@ Defines the test coverage and verification strategy for the Taqelah mobile appli
 
 **Current scope:** Android emulators — Pixel 8 (API 35, local) + Pixel Tablet (API 35, local) for full coverage; CI runs Pixel 6 profile at API 34 (Android 14, google_apis target). 96 TCs across 17 sections verified on local Pixel 8 + Tablet (§0 Smoke, §1–§14 unit modules, §15 Checkout, §16 Regression) — Pixel Tablet skips the 8 Location TCs (AVD GPS emits no fixes). §0 Smoke runs first as a foundation gate (~30s), §16 Regression runs last as a deep cross-module E2E. CI on API 34 with `retries: 2` to absorb emulator flake.
 
-**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5). Verified green: §0 Smoke, §1 Auth, §2 Catalog, §3 Nav Main (03/01), §3 Gestures (03/02); remaining modules pending selector iteration (see iOS Coverage Matrix). Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
+**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5). Verified green: §0 Smoke, §1 Auth, §2 Catalog, §3 Nav Main (03/01), §3 Gestures (03/02), §3 WebView (03/03); remaining modules pending selector iteration (see iOS Coverage Matrix). Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
 
 > Status legend: ✅ Verified · ⚠️ Under investigation · ⏳ Pending · — Not applicable
 
@@ -56,7 +56,7 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 | §2 Catalog (02) | ✅ | Verified (run 26205157543). App-bar buttons by geometry; product cards via `$` class chain. |
 | §3 Nav Main (03/01) | ✅ | Verified (run 26209797847). Drawer items by `~` text; off-screen items asserted as existing, not displayed. |
 | §3 Gestures (03/02) | ✅ | Verified (run 26269338264). Gestures via XCUITest; drag-reorder uses visible-row geometry for an iOS a11y quirk. |
-| §3 WebView (03/03) | ⏳ | Bring-up in CI. Chrome via name-fallback (`~WebView`, Go button) + type predicates (TextField, WKWebView); typing via `addValue`; content asserted on rendered `~Example Domain` text. Iterating selectors vs diagnostic XML. |
+| §3 WebView (03/03) | ✅ | Verified (run 26274138864). Chrome via name-fallback (`~WebView`, Go button) + type predicates (TextField, WKWebView); typing via `addValue`; content asserted on rendered `~Example Domain` text. |
 | §3 Dialogs (03/04) | ⏳ | iOS Alert/ActionSheet a11y differs; expect branch divergence. |
 | §3 Form (03/05) | ⏳ | Rebuild positional field selectors via `~labelText`. |
 | §3 Permissions (03/06) | ⏭ | System-level springboard dialogs — deferred to real-device cloud. |

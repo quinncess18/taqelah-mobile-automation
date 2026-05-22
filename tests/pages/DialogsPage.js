@@ -24,9 +24,14 @@ class DialogsPage extends BasePage {
       : '~Back';
 
     // ── Result Card (shows last action / default state) ──
+    // iOS: Flutter Key()-style ids (`~result-card`, `~alert-message`, …) do NOT
+    // reach iOS accessibilityIdentifier. The element's VISIBLE TEXT drives both
+    // Android content-desc and iOS name, so each text-bearing node ports as
+    // `~<the same string>` (exact name-fallback). Synthetic/contains cases use
+    // type/`CONTAINS` predicates — flagged below; verify vs _iosFailureDiagnostic XML.
     this.resultCard = this.isAndroid
       ? 'android=new UiSelector().description("Interact with a dialog to see the result here")'
-      : '~result-card';
+      : '~Interact with a dialog to see the result here';
 
     // ── Dialog Trigger Buttons ──
     this.alertBtn = this.isAndroid
@@ -64,7 +69,7 @@ class DialogsPage extends BasePage {
 
     this.alertMessage = this.isAndroid
       ? 'android=new UiSelector().description("This is a sample alert dialog. Choose an action.")'
-      : '~alert-message';
+      : '~This is a sample alert dialog. Choose an action.';
 
     this.alertCancel = this.isAndroid
       ? 'android=new UiSelector().description("Cancel")'
@@ -81,7 +86,7 @@ class DialogsPage extends BasePage {
 
     this.bottomSheetDesc = this.isAndroid
       ? 'android=new UiSelector().description("This is a modal bottom sheet with some content.")'
-      : '~bottom-sheet-desc';
+      : '~This is a modal bottom sheet with some content.';
 
     this.bottomSheetClose = this.isAndroid
       ? 'android=new UiSelector().description("Close")'
@@ -94,7 +99,7 @@ class DialogsPage extends BasePage {
     // ── Snackbar ──
     this.snackbarMessage = this.isAndroid
       ? 'android=new UiSelector().description("This is a snackbar message")'
-      : '~snackbar-message';
+      : '~This is a snackbar message';
 
     this.snackbarUndo = this.isAndroid
       ? 'android=new UiSelector().description("UNDO")'
@@ -102,16 +107,19 @@ class DialogsPage extends BasePage {
 
     this.snackbarUndoToast = this.isAndroid
       ? 'android=new UiSelector().description("Undo action performed!")'
-      : '~undo-toast';
+      : '~Undo action performed!';
 
     // ── Date Picker ──
+    // Material date/time pickers render the SAME on iOS (one Flutter codebase).
+    // Their headers/year toggle carry contains-style semantics → iOS CONTAINS
+    // predicates. (Speculative; first XML pass will confirm exact names.)
     this.datePickerTitle = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("Select date")'
-      : '~date-picker-title';
+      : '-ios predicate string:name CONTAINS "Select date"';
 
     this.datePickerYear = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("Select year")'
-      : '~date-picker-year';
+      : '-ios predicate string:name CONTAINS "Select year"';
 
     this.datePickerPrevMonth = this.isAndroid
       ? 'android=new UiSelector().description("Previous month")'
@@ -131,7 +139,7 @@ class DialogsPage extends BasePage {
 
     this.datePickerInputField = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.EditText")'
-      : '~date-input';
+      : '-ios class chain:**/XCUIElementTypeTextField[1]';
 
     this.datePickerInvalidFormat = this.isAndroid
       ? 'android=new UiSelector().description("Invalid format.")'
@@ -148,15 +156,15 @@ class DialogsPage extends BasePage {
     // ── Time Picker ──
     this.timePickerTitle = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("Select time")'
-      : '~time-picker-title';
+      : '-ios predicate string:name CONTAINS "Select time"';
 
     this.timePickerHours = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("Select hours")'
-      : '~time-picker-hours';
+      : '-ios predicate string:name CONTAINS "Select hours"';
 
     this.timePickerMinutes = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("Select minutes")'
-      : '~time-picker-minutes';
+      : '-ios predicate string:name CONTAINS "Select minutes"';
 
     this.timePickerAm = this.isAndroid
       ? 'android=new UiSelector().description("AM")'
@@ -180,11 +188,11 @@ class DialogsPage extends BasePage {
 
     this.timePickerHourInput = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.EditText").instance(0)'
-      : '~hour-input';
+      : '-ios class chain:**/XCUIElementTypeTextField[1]';
 
     this.timePickerMinuteInput = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.EditText").instance(1)'
-      : '~minute-input';
+      : '-ios class chain:**/XCUIElementTypeTextField[2]';
 
     this.timePickerCancel = this.isAndroid
       ? 'android=new UiSelector().description("Cancel")'
@@ -218,7 +226,7 @@ class DialogsPage extends BasePage {
 
     this.fullScreenDesc = this.isAndroid
       ? 'android=new UiSelector().description("This is a full-screen dialog")'
-      : '~full-screen-desc';
+      : '~This is a full-screen dialog';
 
     this.fullScreenBackBtn = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.Button").instance(0)'
@@ -244,19 +252,21 @@ class DialogsPage extends BasePage {
    * @returns {Promise<string>}
    */
   async getResultText() {
-    // Try post-action result first (contains a colon like "Alert: Cancelled",
-    // "Bottom Sheet: Closed", "Snackbar: Undone", "Selected: ...")
-    const postActionEl = await this.driver.$(
-      this.isAndroid
-        ? 'android=new UiSelector().descriptionContains(":")'
-        : '~result-card'
-    );
+    // Post-action result text carries a colon ("Alert: OK pressed",
+    // "Date: 2024-…", "Time: 10:30 AM"); the default state ("Interact with a
+    // dialog…") does not. Match the colon-bearing node first, fall back to the
+    // default card. iOS exposes the text as the element `name`/`label`, Android
+    // as content-desc. (getResultText is only called after the dialog closes,
+    // so an open picker's own colon-bearing labels aren't in the tree.)
+    const postActionSel = this.isAndroid
+      ? 'android=new UiSelector().descriptionContains(":")'
+      : '-ios predicate string:name CONTAINS ":"';
+    const postActionEl = await this.driver.$(postActionSel);
     if (await postActionEl.isExisting()) {
-      return await postActionEl.getAttribute('content-desc');
+      return await postActionEl.getAttribute(this.attrName);
     }
-    // Fall back to default state or Simple Dialog result (no colon)
     const el = await this.driver.$(this.resultCard);
-    return await el.getAttribute('content-desc');
+    return await el.getAttribute(this.attrName);
   }
 
   /**
@@ -346,7 +356,7 @@ class DialogsPage extends BasePage {
     const header = await this.driver.$(
       this.isAndroid
         ? 'android=new UiSelector().descriptionContains("Select time")'
-        : '~Select time'
+        : '-ios predicate string:name CONTAINS "Select time"'
     );
     const switchBtn = await this.driver.$(this.timePickerSwitchInput);
     const hLoc = await header.getLocation();

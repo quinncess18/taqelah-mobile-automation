@@ -167,7 +167,7 @@ jobs:
         # its own state via fullResetAndLogin (terminateApp/launchApp on iOS).
         # Modules are added incrementally as iOS selectors are verified
         # (see TEST_PLAN.md → iOS Coverage Matrix).
-        run: npx playwright test tests/specs/00_smoke tests/specs/01_auth tests/specs/02_catalog tests/specs/03_nav/01_main_nav.spec.js tests/specs/03_nav/02_gestures.spec.js tests/specs/03_nav/03_webview.spec.js
+        run: npx playwright test tests/specs/00_smoke tests/specs/01_auth tests/specs/02_catalog tests/specs/03_nav/01_main_nav.spec.js tests/specs/03_nav/02_gestures.spec.js tests/specs/03_nav/03_webview.spec.js tests/specs/03_nav/04_dialogs.spec.js
 
       - name: Upload Report
         uses: actions/upload-artifact@v4

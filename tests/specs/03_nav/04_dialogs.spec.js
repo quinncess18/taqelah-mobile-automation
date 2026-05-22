@@ -14,11 +14,12 @@ test.describe('Navigation - Dialogs & Alerts Suite (TC-D01-D08)', () => {
     navMenu = new NavMenuPage(driver);
     dialogsPage = new DialogsPage(driver);
 
-    // SELF-HEALING: Return to DemoApp Homepage if deep-linked
+    // SELF-HEALING: Return to DemoApp Homepage if deep-linked.
+    // deviceBack() (app-bar Back / edge-swipe) — driver.back() no-ops on iOS.
     let onHome = await landingPage.isVisible(landingPage.shopAllBtn);
     let retryCount = 0;
     while (!onHome && retryCount < 3) {
-      await driver.back();
+      await landingPage.deviceBack();
       await driver.pause(1000);
       onHome = await landingPage.isVisible(landingPage.shopAllBtn);
       retryCount++;
