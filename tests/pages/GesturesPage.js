@@ -130,8 +130,16 @@ class GesturesPage extends BasePage {
          stepActions.push({ type: 'pointerMove', duration: 150, origin: 'viewport', x: startX, y });
          stepActions.push({ type: 'pause', duration: 120 });
        }
+       // WDA leaves the pointer input source registered after a completed chain,
+       // so a SECOND drag in the same session no-ops deterministically (the lift
+       // never engages — confirmed: drag1 lands, every later drag never moves).
+       // Clear the stale state BEFORE building the chain and use a fresh pointer
+       // id per drag so each gesture is independent.
+       try { await this.driver.releaseActions(); } catch { /* nothing to release on first drag */ }
+       this._dragSeq = (this._dragSeq || 0) + 1;
+       const fingerId = `finger${this._dragSeq}`;
        await this.driver.performActions([{
-         type: 'pointer', id: 'finger1', parameters: { pointerType: 'touch' },
+         type: 'pointer', id: fingerId, parameters: { pointerType: 'touch' },
          actions: [
            { type: 'pointerMove', duration: 0, x: startX, y: startY },
            { type: 'pointerDown', button: 0 },
