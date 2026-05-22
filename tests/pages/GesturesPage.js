@@ -143,48 +143,51 @@ class GesturesPage extends BasePage {
    }
 
   /**
-   * iOS: derive the drag-row layout from the VISIBLE rows (slots 2..5). After a
-   * reorder the card displaced into slot 1 reports visible="false" at (0,0) in
-   * the a11y tree (confirmed via diagnostic XML), so its position is extrapolated
-   * from siblings (even row pitch) and its id inferred by elimination — never
-   * read from its own broken node.
+   * iOS: read the drag-row layout. After a reorder the JUST-DISPLACED card (at
+   * whatever slot it lands, not only slot 1) reports visible="false" at (0,0) in
+   * the a11y tree (confirmed via diagnostic XML), so exactly one slot reads empty.
+   * We scan all five slots, take the four that resolve, then place the single
+   * missing card in the one empty slot by elimination and extrapolate its centre
+   * from the visible rows' even pitch — never reading the broken node's own coords.
+   * Polls until at most one slot is missing (>1 missing = still mid-render).
    * @returns {Promise<{order:number[], cx:number, slotY:(s:number)=>number}>}
-   *   order: cardId at each slot [slot1..slot5] (slot1 by elimination), 0 if unknown
+   *   order: cardId at each slot [slot1..slot5], 0 only if it never settled
    *   cx:    shared row centre x
    *   slotY: centre-y for any slot 1..5
    */
   async iosDragLayout(maxTries = 5) {
-    let rowCard = {}; // slot(2..5) -> cardId
-    let rowCy = {};   // slot(2..5) -> centre y
+    let slotCard = {}; // slot(1..5) -> cardId   (visible only)
+    let slotCy = {};   // slot(1..5) -> centre y (visible only)
     let cx = null;
     for (let t = 0; t < maxTries; t++) {
-      rowCard = {}; rowCy = {}; cx = null;
-      for (let s = 2; s <= 5; s++) {
+      slotCard = {}; slotCy = {}; cx = null;
+      for (let s = 1; s <= 5; s++) {
         for (let c = 1; c <= 5; c++) {
           const el = await this.firstDisplayedEl(this.dragItemExact(s, c));
           if (el) {
             const l = await el.getLocation();
             const z = await el.getSize();
-            rowCard[s] = c;
-            rowCy[s] = Math.round(l.y + z.height / 2);
+            slotCard[s] = c;
+            slotCy[s] = Math.round(l.y + z.height / 2);
             cx = Math.round(l.x + z.width / 2);
             break;
           }
         }
       }
-      // Need all four visible rows (2..5) resolved so slot 1 is unambiguous by
-      // elimination. A partial read means the list is still settling from the
-      // last drag (a row hasn't re-rendered) — pause and re-scan.
-      if (Object.keys(rowCard).length === 4) break;
+      // Settled = at most ONE slot unresolved (the just-displaced card's (0,0)
+      // node). >1 missing means the list is still re-rendering — pause and re-scan.
+      if (Object.keys(slotCard).length >= 4) break;
       await this.driver.pause(this.settlePause);
     }
-    const present = Object.values(rowCard);
-    const slot1Card = [1, 2, 3, 4, 5].find(c => !present.includes(c)) || 0;
-    const order = [slot1Card, rowCard[2] || 0, rowCard[3] || 0, rowCard[4] || 0, rowCard[5] || 0];
+    // Fill the single empty slot (if any) with the one missing card by elimination.
+    const present = Object.values(slotCard);
+    const missingCard = [1, 2, 3, 4, 5].find(c => !present.includes(c)) || 0;
+    const order = [1, 2, 3, 4, 5].map(s => slotCard[s] || missingCard);
 
-    const ref = Object.keys(rowCy).map(Number).sort((a, b) => a - b);
-    const pitch = ref.length >= 2 ? (rowCy[ref[1]] - rowCy[ref[0]]) / (ref[1] - ref[0]) : 64;
-    const slotY = (slot) => Math.round(rowCy[ref[0]] + (slot - ref[0]) * pitch);
+    // Even pitch + shared x from the visible rows; extrapolate any slot's centre.
+    const ref = Object.keys(slotCy).map(Number).sort((a, b) => a - b);
+    const pitch = ref.length >= 2 ? (slotCy[ref[1]] - slotCy[ref[0]]) / (ref[1] - ref[0]) : 64;
+    const slotY = (slot) => Math.round(slotCy[ref[0]] + (slot - ref[0]) * pitch);
     return { order, cx, slotY };
   }
 
