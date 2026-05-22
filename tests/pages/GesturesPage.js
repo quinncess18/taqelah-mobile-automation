@@ -153,22 +153,30 @@ class GesturesPage extends BasePage {
    *   cx:    shared row centre x
    *   slotY: centre-y for any slot 1..5
    */
-  async iosDragLayout() {
-    const rowCard = {}; // slot(2..5) -> cardId
-    const rowCy = {};   // slot(2..5) -> centre y
+  async iosDragLayout(maxTries = 5) {
+    let rowCard = {}; // slot(2..5) -> cardId
+    let rowCy = {};   // slot(2..5) -> centre y
     let cx = null;
-    for (let s = 2; s <= 5; s++) {
-      for (let c = 1; c <= 5; c++) {
-        const el = await this.firstDisplayedEl(this.dragItemExact(s, c));
-        if (el) {
-          const l = await el.getLocation();
-          const z = await el.getSize();
-          rowCard[s] = c;
-          rowCy[s] = Math.round(l.y + z.height / 2);
-          cx = Math.round(l.x + z.width / 2);
-          break;
+    for (let t = 0; t < maxTries; t++) {
+      rowCard = {}; rowCy = {}; cx = null;
+      for (let s = 2; s <= 5; s++) {
+        for (let c = 1; c <= 5; c++) {
+          const el = await this.firstDisplayedEl(this.dragItemExact(s, c));
+          if (el) {
+            const l = await el.getLocation();
+            const z = await el.getSize();
+            rowCard[s] = c;
+            rowCy[s] = Math.round(l.y + z.height / 2);
+            cx = Math.round(l.x + z.width / 2);
+            break;
+          }
         }
       }
+      // Need all four visible rows (2..5) resolved so slot 1 is unambiguous by
+      // elimination. A partial read means the list is still settling from the
+      // last drag (a row hasn't re-rendered) — pause and re-scan.
+      if (Object.keys(rowCard).length === 4) break;
+      await this.driver.pause(this.settlePause);
     }
     const present = Object.values(rowCard);
     const slot1Card = [1, 2, 3, 4, 5].find(c => !present.includes(c)) || 0;
