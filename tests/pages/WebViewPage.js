@@ -13,24 +13,34 @@ class WebViewPage extends BasePage {
   constructor(driver) {
     super(driver);
 
+    // iOS: Flutter Key()-style ids do NOT reach iOS accessibilityIdentifier, so
+    // `~url-input`/`~go-button`/`~webview-container` never resolve. Use the
+    // visible-text name-fallback (header "WebView", "Go") and XCUIElement type
+    // predicates (the lone TextField; the WKWebView container) instead — same
+    // approach as the green Nav/Gestures iOS bring-ups. Verify against the
+    // _iosFailureDiagnostic XML before flipping the TEST_PLAN row to ✅.
+
     // Header
     this.title = this.isAndroid
       ? 'android=new UiSelector().description("WebView")'
       : '~WebView';
 
-    // URL Bar
+    // URL Bar — the only text field on the screen.
     this.urlInput = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.EditText")'
-      : '~url-input';
+      : '-ios predicate string:type == "XCUIElementTypeTextField"';
 
+    // Go — scope to Button so the soft keyboard's own "Go" return key (also
+    // name="Go", surfaces while typing) can't shadow the app's URL-bar button.
     this.goBtn = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.Button").description("Go")'
-      : '~go-button';
+      : '-ios predicate string:name == "Go" AND type == "XCUIElementTypeButton"';
 
-    // WebView Container
+    // WebView Container — WKWebView surfaces as XCUIElementTypeWebView; its DOM
+    // paints into the native tree as static text (see waitForPageContent).
     this.webViewContainer = this.isAndroid
       ? 'android=new UiSelector().className("android.webkit.WebView")'
-      : '~webview-container';
+      : '-ios predicate string:type == "XCUIElementTypeWebView"';
 
     // Bottom Navigation Bar (browser controls)
     // Note: Bottom buttons are NAF (Not Accessibility Friendly) in the XML dump,
@@ -65,6 +75,12 @@ class WebViewPage extends BasePage {
    */
   async getCurrentUrl() {
     const el = await this.driver.$(this.urlInput);
+    if (this.isIOS) {
+      // iOS TextField surfaces its content as `value`, not as descendant text;
+      // getText() can come back empty. Prefer value, fall back to getText().
+      const val = await el.getAttribute('value');
+      if (val) return val;
+    }
     return await el.getText();
   }
 
@@ -95,7 +111,14 @@ class WebViewPage extends BasePage {
   async navigateToUrl(url) {
     await this.clearField(this.urlInput);
     const input = await this.driver.$(this.urlInput);
-    await input.setValue(url);
+    // iOS: setValue only sets the a11y value and bypasses the Flutter
+    // TextEditingController, so the navigate handler reads an empty URL — use
+    // addValue (types through the soft keyboard). Mirrors the Auth/Form path.
+    if (this.isIOS) {
+      await input.addValue(url);
+    } else {
+      await input.setValue(url);
+    }
     const go = await this.driver.$(this.goBtn);
     await go.click();
   }

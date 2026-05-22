@@ -56,7 +56,7 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 | §2 Catalog (02) | ✅ | Verified (run 26205157543). App-bar buttons by geometry; product cards via `$` class chain. |
 | §3 Nav Main (03/01) | ✅ | Verified (run 26209797847). Drawer items by `~` text; off-screen items asserted as existing, not displayed. |
 | §3 Gestures (03/02) | ✅ | Verified (run 26269338264). Gestures via XCUITest; drag-reorder uses visible-row geometry for an iOS a11y quirk. |
-| §3 WebView (03/03) | ⏳ | Content-only text assertions should port (WKWebView). |
+| §3 WebView (03/03) | ⏳ | Bring-up in CI. Chrome via name-fallback (`~WebView`, Go button) + type predicates (TextField, WKWebView); typing via `addValue`; content asserted on rendered `~Example Domain` text. Iterating selectors vs diagnostic XML. |
 | §3 Dialogs (03/04) | ⏳ | iOS Alert/ActionSheet a11y differs; expect branch divergence. |
 | §3 Form (03/05) | ⏳ | Rebuild positional field selectors via `~labelText`. |
 | §3 Permissions (03/06) | ⏭ | System-level springboard dialogs — deferred to real-device cloud. |
