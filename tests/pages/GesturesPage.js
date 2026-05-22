@@ -115,47 +115,19 @@ class GesturesPage extends BasePage {
      const rawEndY = Math.round(tLoc.y + tSz.height * 0.5);
 
      if (this.isIOS) {
-       // Drag the tile to the target slot's centre in small settling steps so
-       // Flutter's ReorderableList tracks the gap and drops on the intended
-       // slot. NO drop-offset compensation: the [M05-diag] mapping (run
-       // 26214052978) showed dragging to the target centre lands exactly on
-       // target — the earlier misses were the CONTAINS selector collision
-       // (now BEGINSWITH), not the drag. (A −1 row pull-back overshot the other
-       // way: target=4→landed=3, target=2→near-zero drag.)
+       // iOS-native long-press-drag. Raw W3C performActions chains only ever
+       // completed ONE reorder per test — every later chain no-opped regardless
+       // of target, retries, or pointer-state resets. The native gesture
+       // re-initializes cleanly per call. `duration` is the press hold (s) that
+       // triggers Flutter's reorder mode before the drag begins.
        const endY = rawEndY;
-       const steps = 6;
-       const stepActions = [];
-       for (let s = 1; s <= steps; s++) {
-         const y = Math.round(startY + (endY - startY) * (s / steps));
-         stepActions.push({ type: 'pointerMove', duration: 150, origin: 'viewport', x: startX, y });
-         stepActions.push({ type: 'pause', duration: 120 });
-       }
-       // WDA leaves the pointer input source registered after a completed chain,
-       // so a SECOND drag in the same session no-ops deterministically (the lift
-       // never engages — confirmed: drag1 lands, every later drag never moves).
-       // Clear the stale state BEFORE building the chain and use a fresh pointer
-       // id per drag so each gesture is independent.
-       try { await this.driver.releaseActions(); } catch { /* nothing to release on first drag */ }
-       this._dragSeq = (this._dragSeq || 0) + 1;
-       const fingerId = `finger${this._dragSeq}`;
-       await this.driver.performActions([{
-         type: 'pointer', id: fingerId, parameters: { pointerType: 'touch' },
-         actions: [
-           { type: 'pointerMove', duration: 0, x: startX, y: startY },
-           { type: 'pointerDown', button: 0 },
-           { type: 'pause', duration: 1800 },
-           { type: 'pointerMove', duration: 100, origin: 'viewport', x: startX, y: startY - 12 },
-           // Hold after the lift so Flutter fully enters drag-mode before moving —
-           // on the cold CI sim too short a pause here lets the card fall back home.
-           { type: 'pause', duration: 500 },
-           ...stepActions,
-           { type: 'pause', duration: 400 },
-           { type: 'pointerUp', button: 0 },
-         ]
-       }]);
-       await this.driver.releaseActions();
+       await this.driver.execute('mobile: dragFromToForDuration', {
+         duration: 1.6,
+         fromX: startX, fromY: startY,
+         toX: startX,   toY: endY,
+       });
        await this.driver.pause(this.settlePause);
-       return;
+       return { startX, startY, endY }; // geometry for [M05] diag
      }
 
      await this.driver.performActions([{
@@ -173,34 +145,37 @@ class GesturesPage extends BasePage {
    }
 
   /**
-   * iOS: returns the slot (1..5) currently holding the given card id, or -1.
-   * Reads the live a11y tree via the proven position+id selector — no positional
-   * bookkeeping, so the widget's insert-and-shift reorder can't drift it.
+   * iOS: returns the card id occupying each slot 1..5 (index 0 = slot1), 0 where
+   * unresolved. Reads the live a11y tree via the proven position+id selector — no
+   * positional bookkeeping, so the widget's insert-and-shift reorder can't drift it.
    */
-  async currentSlotOf(cardId) {
+  async readOrder() {
+    const order = [];
     for (let s = 1; s <= 5; s++) {
-      if (await this.isVisible(this.dragItemExact(s, cardId))) return s;
+      let id = 0;
+      for (let c = 1; c <= 5; c++) {
+        if (await this.isVisible(this.dragItemExact(s, c))) { id = c; break; }
+      }
+      order.push(id);
     }
-    return -1;
+    return order;
   }
 
   /**
-   * iOS: drag a card to a target slot, retrying the lift until it engages.
-   * On the cold CI sim a long-press can fire before the previous drop finishes
-   * settling, so the picked-up card falls back into its own slot. Each attempt
-   * settles first, performs the drag, then confirms the card actually landed at
-   * the target before giving up.
-   * @returns {Promise<{moved: boolean, attempts: number}>}
+   * iOS: drag a card to a target slot, retrying until the card actually lands
+   * there. Settles before each attempt, performs the native drag, then confirms.
+   * @returns {Promise<{moved: boolean, attempts: number, geo: object|null}>}
    */
   async reorderWithRetry(cardId, targetSlot, maxAttempts = 3) {
+    let geo = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      await this.driver.pause(this.settlePause); // let any prior drop animation finish before the next lift
-      await this.reorderItem(this.dragItem(cardId), this.dragSlot(targetSlot));
+      await this.driver.pause(this.settlePause); // let any prior drop animation finish first
+      geo = await this.reorderItem(this.dragItem(cardId), this.dragSlot(targetSlot));
       if (await this.isVisible(this.dragItemExact(targetSlot, cardId))) {
-        return { moved: true, attempts: attempt };
+        return { moved: true, attempts: attempt, geo };
       }
     }
-    return { moved: false, attempts: maxAttempts };
+    return { moved: false, attempts: maxAttempts, geo };
   }
 
   /**

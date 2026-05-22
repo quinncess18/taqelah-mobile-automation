@@ -54,22 +54,21 @@ test.describe('Navigation - Gestures Interaction Suite (TC-M04-M08)', () => {
     }
 
     if (driver.isIOS) {
-      // iOS: on the cold CI sim the reorder list is slow to settle after a drop,
-      // so the next long-press can fire before it's ready — the picked-up card
-      // lifts but falls back into its own slot instead of relocating. We still
-      // test the REAL action (each card must land at the slot it was dragged to)
-      // but retry the lift until it engages. The card's live slot is read each
-      // round (dragItemExact), not tracked in a swap model — the widget shifts,
-      // it doesn't swap, so any predicted bookkeeping would drift. Page reset →
-      // ascending order is covered by TC-M08.
+      // iOS: verify the real drag action per card via the iOS-native gesture,
+      // reading each card's live slot (the widget shifts, not swaps, so no
+      // predicted bookkeeping). [M05] logs per-drag geometry + before/after order
+      // so a no-op is immediately visible in CI. Page reset → ascending order is
+      // covered by TC-M08.
       for (const cardId of [1, 2, 3, 4, 5]) {
-        const currentSlot = await gesturesPage.currentSlotOf(cardId);
+        const before = await gesturesPage.readOrder();
+        const currentSlot = before.indexOf(cardId) + 1;
         const choices = [1, 2, 3, 4, 5].filter(s => s !== currentSlot);
         const targetSlot = choices[Math.floor(Math.random() * choices.length)];
 
-        const { moved, attempts } = await gesturesPage.reorderWithRetry(cardId, targetSlot, 3);
+        const { moved, attempts, geo } = await gesturesPage.reorderWithRetry(cardId, targetSlot, 3);
+        const after = await gesturesPage.readOrder();
         if (process.env.CI) {
-          console.log(`[M05] cardId=${cardId} ${currentSlot}->${targetSlot} attempts=${attempts} moved=${moved}`);
+          console.log(`[M05] card=${cardId} ${currentSlot}->${targetSlot} attempts=${attempts} moved=${moved} geo=${JSON.stringify(geo)} before=[${before}] after=[${after}]`);
         }
         // Verify the actual action landed: card is now at its target slot
         expect(moved).toBe(true);
