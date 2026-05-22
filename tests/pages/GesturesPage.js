@@ -101,9 +101,24 @@ class GesturesPage extends BasePage {
     }]);
   }
 
+  /**
+   * Returns the first DISPLAYED element matching the selector, or the plain
+   * first match if none report displayed. After a reorder iOS leaves a
+   * non-displayed proxy/ghost node for the displaced top card near the screen
+   * origin; the default $() (first match in tree) grabs it and reports bogus
+   * coords (~61,11), so source/target resolution must skip to the visible one.
+   */
+  async firstDisplayedEl(selector) {
+    const els = await this.driver.$$(selector);
+    for (const el of els) {
+      try { if (await el.isDisplayed()) return el; } catch { /* stale, skip */ }
+    }
+    return await this.driver.$(selector); // fallback: let caller fail loudly
+  }
+
   async reorderItem(sourceSelector, targetSelector) {
-     const source = await this.driver.$(sourceSelector);
-     const target = await this.driver.$(targetSelector);
+     const source = this.isIOS ? await this.firstDisplayedEl(sourceSelector) : await this.driver.$(sourceSelector);
+     const target = this.isIOS ? await this.firstDisplayedEl(targetSelector) : await this.driver.$(targetSelector);
 
      const sLoc = await source.getLocation();
      const sSz = await source.getSize();
@@ -145,6 +160,19 @@ class GesturesPage extends BasePage {
    }
 
   /**
+   * True if ANY element matching the selector is displayed. Ghost-aware: a plain
+   * isVisible() inspects only the first tree match, which after a reorder can be
+   * the non-displayed proxy node — masking the real, visible card.
+   */
+  async isDisplayedAny(selector) {
+    const els = await this.driver.$$(selector);
+    for (const el of els) {
+      try { if (await el.isDisplayed()) return true; } catch { /* stale, skip */ }
+    }
+    return false;
+  }
+
+  /**
    * iOS: returns the card id occupying each slot 1..5 (index 0 = slot1), 0 where
    * unresolved. Reads the live a11y tree via the proven position+id selector — no
    * positional bookkeeping, so the widget's insert-and-shift reorder can't drift it.
@@ -154,7 +182,7 @@ class GesturesPage extends BasePage {
     for (let s = 1; s <= 5; s++) {
       let id = 0;
       for (let c = 1; c <= 5; c++) {
-        if (await this.isVisible(this.dragItemExact(s, c))) { id = c; break; }
+        if (await this.isDisplayedAny(this.dragItemExact(s, c))) { id = c; break; }
       }
       order.push(id);
     }
@@ -171,7 +199,7 @@ class GesturesPage extends BasePage {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       await this.driver.pause(this.settlePause); // let any prior drop animation finish first
       geo = await this.reorderItem(this.dragItem(cardId), this.dragSlot(targetSlot));
-      if (await this.isVisible(this.dragItemExact(targetSlot, cardId))) {
+      if (await this.isDisplayedAny(this.dragItemExact(targetSlot, cardId))) {
         return { moved: true, attempts: attempt, geo };
       }
     }

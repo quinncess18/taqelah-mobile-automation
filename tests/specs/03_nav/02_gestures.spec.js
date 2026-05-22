@@ -72,12 +72,12 @@ test.describe('Navigation - Gestures Interaction Suite (TC-M04-M08)', () => {
         }
         // Verify the actual action landed: card is now at its target slot
         expect(moved).toBe(true);
-        expect(await gesturesPage.isVisible(gesturesPage.dragItemExact(targetSlot, cardId))).toBe(true);
+        expect(await gesturesPage.isDisplayedAny(gesturesPage.dragItemExact(targetSlot, cardId))).toBe(true);
       }
 
       // All 5 position slots still present (ascending indexes intact)
       for (let i = 1; i <= 5; i++) {
-        expect(await gesturesPage.isVisible(gesturesPage.dragSlot(i))).toBe(true);
+        expect(await gesturesPage.isDisplayedAny(gesturesPage.dragSlot(i))).toBe(true);
       }
       return; // No exit — continue to TC-M06 on the same page
     }
