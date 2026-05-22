@@ -136,25 +136,30 @@ const test = base.extend({
    * `noReset: true`.
    */
   /**
-   * Auto-fixture: on iOS test failure in CI, dump page source + screenshot to
-   * test-results/diagnostics/ so we can audit the live a11y tree against our
-   * POM selectors. Best-effort: never throws, never breaks downstream
-   * recovery. Runs BEFORE _autoSessionRecovery (declared first → teardown
-   * runs LIFO → diagnostic captures state, then recovery decides whether to
-   * reload). iOS-only + CI-only gated so local runs and Android stay silent.
+   * Auto-fixture: on ANY test failure in CI, dump page source + screenshot to
+   * test-results/diagnostics/ so we can audit the live a11y tree / see the
+   * failing screen against our POM selectors. Best-effort: never throws, never
+   * breaks downstream recovery. Runs BEFORE _autoSessionRecovery (declared
+   * first → teardown runs LIFO → diagnostic captures state, then recovery
+   * decides whether to reload). CI-only so local runs stay silent.
+   *
+   * Covers both platforms (was iOS-only): Android is the less stable lane and
+   * its plain isVisible assertions left no artifact, so deterministic CI-only
+   * failures like TC-F05 were undiagnosable from logs alone. The slug carries
+   * a platform prefix; each job uploads its own test-results/ artifact.
    */
-  _iosFailureDiagnostic: [
+  _failureDiagnostic: [
     async ({ driver }, use, testInfo) => {
       await use();
       if (testInfo.status === testInfo.expectedStatus) return;
       if (!process.env.CI) return;
-      if (!driver.isIOS) return;
 
+      const platform = driver.isIOS ? 'ios' : 'android';
       // Suffix the retry index so a later attempt's dump doesn't overwrite the
       // first failure's screen. (Retries that fail in beforeEach capture a
       // post-relaunch screen, which previously masked the real failing screen.)
       const retrySuffix = testInfo.retry > 0 ? `-retry${testInfo.retry}` : '';
-      const slug = testInfo.title.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) + retrySuffix;
+      const slug = `${platform}-` + testInfo.title.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) + retrySuffix;
       const outDir = path.resolve(process.cwd(), 'test-results', 'diagnostics');
       try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
@@ -166,9 +171,9 @@ const test = base.extend({
         ]);
         const srcPath = path.join(outDir, `${slug}-source.xml`);
         fs.writeFileSync(srcPath, src, 'utf8');
-        console.log(`[ios-diag] wrote ${srcPath} (${src.length} bytes)`);
+        console.log(`[diag] wrote ${srcPath} (${src.length} bytes)`);
       } catch (err) {
-        console.warn(`[ios-diag] page source dump failed: ${err.message}`);
+        console.warn(`[diag] page source dump failed: ${err.message}`);
       }
 
       // Screenshot — secondary; helps verify the correct screen was reached.
@@ -179,9 +184,9 @@ const test = base.extend({
         ]);
         const pngPath = path.join(outDir, `${slug}-screenshot.png`);
         fs.writeFileSync(pngPath, Buffer.from(png, 'base64'));
-        console.log(`[ios-diag] wrote ${pngPath}`);
+        console.log(`[diag] wrote ${pngPath}`);
       } catch (err) {
-        console.warn(`[ios-diag] screenshot failed: ${err.message}`);
+        console.warn(`[diag] screenshot failed: ${err.message}`);
       }
     },
     { auto: true },

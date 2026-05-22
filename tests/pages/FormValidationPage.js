@@ -303,6 +303,51 @@ class FormValidationPage extends BasePage {
   }
 
   /**
+   * Assert a post-submit validation error is present, resilient to the two ways
+   * TC-F05 flaked deterministically on CI (per-run, all retries):
+   *   1. Render lag — on slow CI Flutter the validation labels land a few
+   *      hundred ms after submit; a single-shot isVisible probes too early.
+   *   2. Clipping — F05's filled-in error-state form is taller than F04's, and
+   *      submit auto-scrolls to the FIRST invalid field, leaving the TOP labels
+   *      (Email/Phone) tucked under the app bar; the gentle resetToTop swipe
+   *      doesn't clear them, so isVisible returns false for the top errors while
+   *      the lower ones (Number/Password) pass — the exact observed signature.
+   * Android scrolls the label into the scrollable container's view first
+   * (UiScrollable), then waits for it to display. If the error genuinely never
+   * fires (e.g. an invalid value didn't land → the *required* error shows
+   * instead), this returns false and the _failureDiagnostic dump shows why.
+   * @param {string} text - exact error label text (e.g. "Enter a valid email")
+   * @param {number} timeout
+   * @returns {Promise<boolean>}
+   */
+  async hasValidationError(text, timeout = 6000) {
+    if (this.isAndroid) {
+      try {
+        await this.driver.$(
+          `android=new UiScrollable(new UiSelector().scrollable(true).instance(0))` +
+          `.scrollIntoView(new UiSelector().description("${text}"))`
+        );
+      } catch {
+        // Not yet in the tree, or no scrollable container — fall through to the
+        // wait, which gives a lagging label time to render.
+      }
+      try {
+        await this.waitForDisplayed(`android=new UiSelector().description("${text}")`, timeout);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    // iOS (module not yet wired here) — name-fallback wait. Future-proof.
+    try {
+      await this.waitForDisplayed(`~${text}`, timeout);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Open the Category dropdown.
    */
   async openCategory() {

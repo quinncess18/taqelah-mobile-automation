@@ -104,7 +104,11 @@ test.describe('Navigation - Dialogs & Alerts Suite (TC-D01-D08)', () => {
     // Click UNDO
     await driver.$(dialogsPage.snackbarUndo).click();
 
-    // Verify the undo toast message appears at the bottom of the page
+    // Verify the undo toast message appears at the bottom of the page. The
+    // UNDO toast is a NEW snackbar that slides in as the first slides out; on
+    // iOS the single-shot isVisible raced that animation (TC-D04 failed here,
+    // line 108, though the dump confirmed the toast did appear). Wait for it.
+    await dialogsPage.waitForDisplayed(dialogsPage.snackbarUndoToast, 5000).catch(() => {});
     expect(await dialogsPage.isVisible(dialogsPage.snackbarUndoToast)).toBe(true);
 
     // Verify result card shows the undo action

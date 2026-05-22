@@ -266,12 +266,17 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
     await formPage.submit();
     await formPage.resetToTop();
 
-    // Format errors fire for the four invalid fields. Name has no format
-    // check, so its error must NOT be present.
-    expect(await formPage.isVisible(formPage.errorEmailInvalid)).toBe(true);
-    expect(await formPage.isVisible(formPage.errorPhoneInvalid)).toBe(true);
-    expect(await formPage.isVisible(formPage.errorNumberRange)).toBe(true);
-    expect(await formPage.isVisible(formPage.errorPasswordMin)).toBe(true);
+    // Format errors fire for the four invalid fields. hasValidationError gates
+    // on render-lag AND scrolls each label into view — F05 deterministically
+    // failed lines 271/272 (the TOP errors, Email/Phone) on slower CI machines
+    // because the taller error-state form left them clipped under the app bar
+    // after submit auto-scrolled to the first invalid field (run 26265465033).
+    // Text mirrors the POM error selectors (errorEmailInvalid, etc.).
+    expect(await formPage.hasValidationError('Enter a valid email')).toBe(true);
+    expect(await formPage.hasValidationError('At least 10 digits')).toBe(true);
+    expect(await formPage.hasValidationError('Enter 1-100')).toBe(true);
+    expect(await formPage.hasValidationError('Min 6 characters')).toBe(true);
+    // Name has no format check, so its error must NOT be present.
     expect(await formPage.isVisible(formPage.errorName)).toBe(false);
   });
 

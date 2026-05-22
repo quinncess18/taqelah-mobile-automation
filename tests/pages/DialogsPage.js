@@ -328,9 +328,12 @@ class DialogsPage extends BasePage {
    * @param {number} day
    */
   async selectDate(day) {
+    // iOS day cells are named "15, Wednesday, May 15, 2024" (confirmed via D05
+    // diagnostic XML), not bare "15" — so `~15` exact-match misses. BEGINSWITH
+    // "15, " is the iOS analogue of Android's descriptionContains("15, ").
     const selector = this.isAndroid
       ? `android=new UiSelector().descriptionContains("${day}, ")`
-      : `~${day}`;
+      : `-ios predicate string:name BEGINSWITH "${day}, "`;
     const el = await this.driver.$(selector);
     await el.click();
     await this.driver.pause(500);
