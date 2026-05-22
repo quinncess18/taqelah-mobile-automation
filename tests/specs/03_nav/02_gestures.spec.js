@@ -54,12 +54,14 @@ test.describe('Navigation - Gestures Interaction Suite (TC-M04-M08)', () => {
     }
 
     if (driver.isIOS) {
-      // iOS: the card displaced into slot 1 reports visible="false" at (0,0) in
-      // the a11y tree after a reorder (confirmed via diagnostic XML), so we never
-      // read the top row's own coords. iosDragLayout derives all slot positions
-      // from the visible sibling rows (even pitch) and infers the slot-1 card by
-      // elimination. We still test the REAL action: drag a card to a target slot
-      // and confirm it lands there. Page reset → ascending is covered by TC-M08.
+      // iOS: after a reorder the just-displaced card (at whatever slot it lands)
+      // reports visible="false" at (0,0) in the a11y tree (confirmed via
+      // diagnostic XML), so we never read that row's own coords. iosDragLayout
+      // derives all slot positions from the visible sibling rows (even pitch) and
+      // infers the missing card by elimination. We still test the REAL action:
+      // drag a card to a target slot and confirm it lands there. A landing read
+      // can be transiently dirty, so each drag retries. Page reset → ascending is
+      // covered by TC-M08.
       for (const cardId of [1, 2, 3, 4, 5]) {
         let layout = await gesturesPage.iosDragLayout();
         const startSlot = layout.order.indexOf(cardId) + 1;
@@ -74,9 +76,6 @@ test.describe('Navigation - Gestures Interaction Suite (TC-M04-M08)', () => {
           await gesturesPage.iosReorder(layout.cx, layout.slotY(curSlot), layout.slotY(targetSlot));
           layout = await gesturesPage.iosDragLayout();
           moved = layout.order[targetSlot - 1] === cardId;
-        }
-        if (process.env.CI) {
-          console.log(`[M05] card=${cardId} ${startSlot}->${targetSlot} attempts=${attempts} moved=${moved} order=[${layout.order}]`);
         }
         // Verify the actual action landed: card is now at its target slot
         expect(moved).toBe(true);

@@ -25,9 +25,6 @@ Production-grade automation framework for the **Taqelah Boutique** Flutter appli
 | §15 Checkout | TC-K01–K04 | Shipping validation, Review math, Place Order, state preservation |
 | §16 Regression | TC-E01 | Full cross-module E2E — runs last |
 
-Detailed coverage, strategy, and per-device status in [TEST_PLAN.md](./TEST_PLAN.md).
-
-
 ## 🚀 Key Features
 - **Cross-Platform Architecture:** Codebase runs on both Android (Pixel 8, Pixel Tablet) and iOS (Simulator). Android suite is fully verified across all 17 sections; iOS Simulator runs §0 smoke on GHA `macos-14` and is being expanded module-by-module.
 - **Safe-Zone Gestures:** Device-agnostic logic using a **30% width safe zone**, avoiding all system handles and split-view triggers on wide screens.
@@ -40,16 +37,18 @@ Detailed coverage, strategy, and per-device status in [TEST_PLAN.md](./TEST_PLAN
 ```text
 ├── apps/                 # Application binaries (.apk, .app)
 ├── config/               # Device (Android/iOS) and Appium server configurations
-├── fixtures/             # Playwright custom fixtures (Dynamic Driver switching)
+├── fixtures/             # Playwright custom fixtures (dynamic driver switching)
 ├── tests/
 │   ├── data/             # Static test data (products.js)
-│   ├── pages/            # Page Object Models (Cross-Platform Selectors)
+│   ├── pages/            # Page Object Models (cross-platform selectors)
 │   └── specs/            # Test suites organized by module
-│       ├── 01_auth/      # Authentication & Security tests
-│       ├── 02_catalog/   # Home, Grid, Categories
-│       ├── 03_nav/       # Navigation routing & Gestures
-│       └── 04_products/  # Product Detail, Add to Cart, Search
-└── playwright.config.js  # Main configuration for the test runner
+│       ├── 00_smoke/      # Bookend smoke (TC-SM01)
+│       ├── 01_auth/       # Authentication & security
+│       ├── 02_catalog/    # Home, grid, categories
+│       ├── 03_nav/        # Nav, gestures, webview, dialogs, form, permissions, notifications, tabs, camera, location, dark mode
+│       ├── 04_products/   # Product detail, cart, checkout
+│       └── 05_regression/ # End-to-end regression
+└── playwright.config.js  # Test runner configuration
 ```
 
 ## 🛠️ Tech Stack
@@ -58,7 +57,7 @@ Detailed coverage, strategy, and per-device status in [TEST_PLAN.md](./TEST_PLAN
 - **Mobile Driver:** [Appium 2.x](https://appium.io/)
 - **Client Library:** [WebdriverIO 8.x](https://webdriver.io/)
 - **Android Driver:** `uiautomator2` (installed)
-- **iOS Driver:** `xcuitest` (installed; CI runs §0 smoke on iOS Simulator via GHA `macos-14`)
+- **iOS Driver:** `xcuitest` (installed; CI runs §0–§3 on iOS Simulator via GHA `macos-14`)
 
 ## 🚦 Getting Started
 
@@ -111,23 +110,6 @@ npx playwright test tests/specs/01_auth/01_functional.spec.js --project="Pixel 8
 # Single TC by ID
 npx playwright test --project="Pixel 8 (Local)" -g "TC-L01"
 ```
-
-## 🎯 Per-Module API Compatibility
-
-Each module declares its supported Android API range as an explicit contract.
-
-| Module | Min API | Notes |
-|---|---|---|
-| Auth, Catalog, Nav Main, Gestures, WebView, Dialogs, Form, Permissions, Tabs | 29 | All version-gated paths have fallbacks (e.g. PermissionsPage's API-29 AOSP UI selectors). |
-| Camera | 30 | Uses Android 11+ foreground-only permission dialog; API 29 fallbacks not retained. |
-| **Notifications** | **33** | `POST_NOTIFICATIONS` is API 33+. CI MUST run API 33+ for this module to verify. |
-| **Location** | 29 | No version-gated APIs. Pixel Tablet AVD runtime-skipped (`width > 1200`) — emulator-5556's GPS provider does not emit fixes. GPS-warm-up tests TC-LO02–LO05 also skipped on Android CI (`process.env.CI && driver.isAndroid`) — the warm-up crashes the GHA Pixel-6 AVD's UIA2 session and cascades into Products/Checkout/Regression; LO01 + LO06–LO08 still run. Module runs full locally on Pixel 8 until mock-location injection, adb-reboot recovery, or real-device cloud is wired. |
-| **Dark Mode** | 29 | Cross-cutting smoke. Inherits 10/Location's tablet-skip for the Location step only; rest of the walk runs on both devices. |
-| **Products (04/01)** | 29 | No version-gated widgets. Pixel Tablet runs in **forced portrait** — orientation lock applied AFTER login via `mobile: shell` + `settings put system user_rotation 1`. Without rotation, Pixel Tablet's natural landscape makes product cards taller than the viewport and NAF add-to-cart child Buttons don't enter the a11y tree. |
-| **Cart (04/02)** | 29 | Inherits Products' portrait lock (Products' `afterAll` no longer reverts). Cart's `afterAll` performs the end-of-chain revert. Per-line buttons are NAF + duplicate content-desc (PD02 variants) → resolved via direct `.click()` on the line ImageView's Button children. |
-| **Checkout (04/03)** | 29 | Chains off Cart's empty-state. Adds 2–3 distinct random items via Detail-page add (snackbar overlay made grid direct-add unreliable). Shipping fields are NAF EditTexts via UiScrollable instance(0–6); Review line items are `View + descriptionContains("Qty:")` (different class than Cart's `ImageView` lines). |
-
-See `TEST_PLAN.md → API Compatibility Matrix` for the operating contract (how to declare modules, what to do when bumping CI API).
 
 ## 📝 Documentation
 - [TEST_PLAN.md](./TEST_PLAN.md): Current test coverage, per-device verification status, and the per-module API compatibility matrix.

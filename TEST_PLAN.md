@@ -4,7 +4,7 @@ Defines the test coverage and verification strategy for the Taqelah mobile appli
 
 **Current scope:** Android emulators — Pixel 8 (API 35, local) + Pixel Tablet (API 35, local) for full coverage; CI runs Pixel 6 profile at API 34 (Android 14, google_apis target). 96 TCs across 17 sections verified on local Pixel 8 + Tablet (§0 Smoke, §1–§14 unit modules, §15 Checkout, §16 Regression) — Pixel Tablet skips the 8 Location TCs (AVD GPS emits no fixes). §0 Smoke runs first as a foundation gate (~30s), §16 Regression runs last as a deep cross-module E2E. CI on API 34 with `retries: 2` to absorb emulator flake.
 
-**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5). Verified green: §0 Smoke, §1 Auth, §2 Catalog, §3 Nav Main (03/01); remaining modules pending selector iteration (see iOS Coverage Matrix). Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
+**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5). Verified green: §0 Smoke, §1 Auth, §2 Catalog, §3 Nav Main (03/01), §3 Gestures (03/02); remaining modules pending selector iteration (see iOS Coverage Matrix). Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
 
 > Status legend: ✅ Verified · ⚠️ Under investigation · ⏳ Pending · — Not applicable
 
@@ -15,21 +15,21 @@ Each module's supported Android API range is an explicit contract. A new module 
 | Module | Min API | Max API tested | Rationale / Constraint |
 |---|---|---|---|
 | Auth (01) | 29 | 35 | No version-gated APIs. |
-| Catalog (02) | 29 | 35 | No version-gated APIs. **TC-C04** (32-item integrity scan) runs a **300s test timeout on Pixel Tablet** (`width > 1200`); phone stays at 180s. The tablet's denser grid + slower a11y bridge make each half-viewport flick cost ~3.6s, so the deterministic scan reaches 32/32 around flick 53 (~192s) — over the 180s phone budget but well under 300s. Scroll mechanics are unchanged across devices (slowing them re-introduces the a11y-bridge race). |
+| Catalog (02) | 29 | 35 | No version-gated APIs. |
 | Nav Main (03/01) | 29 | 35 | No version-gated APIs. |
-| Gestures (03/02) | 29 | 35 | Pinch detection unified phone+tablet via dense-scan pixel count (2026-05-12). |
-| WebView (03/03) | 29 | 35 | DemoApp builds without `WebContentsDebuggingEnabled` — DOM verification unavailable across all versions. |
-| Dialogs (03/04) | 29 | 35 | Time Picker dial canvas tap-anchored selectors work across versions. |
-| Form Validation (03/05) | 29 | 35 | Each TC self-resets via back+re-enter (2026-05-12); no cascade fragility. |
-| Permissions (03/06) | 29 | 35 | API-29 fallbacks retained (AOSP "Don't ask again" checkbox, generic Allow); inactive on API 33+ via try/catch gating. |
-| **Notifications (03/07)** | **33** | **35** | `POST_NOTIFICATIONS` is API 33+ only. Tests would all `waitForDialog` timeout on API ≤ 32. CI MUST run API 33+ for this module to verify. |
-| Tabs & Navigation (03/08) | 29 | 35 | No version-gated APIs. Pager swipe geometry (`y = height * 0.55`) works on phone + tablet without branching. |
-| Camera (03/09) | 30 | 35 | Uses Android 11+ "While using the app" permission dialog (`permission_allow_foreground_only_button`). API 29 fallbacks not retained — the DemoApp's Camera screen targets the modern foreground-only model. TC-CM05 asserts dialog presence via `waitForDialogDisplayed(10s)` (wait-in-try/catch), not single-shot `isVisible` — on fresh entry the OS dialog lags the Flutter permission request 1–2s and raced the old check (2026-05-20). |
-| **Location (03/10)** | 29 | 35 | No version-gated dialog widgets. **Pixel Tablet AVD skipped at runtime** (`width > 1200` → `test.skip`) — emulator-5556's GPS provider does not emit fixes within practical timeouts, so the Current Location card never renders even with OS permission granted. **Granted path TC-LO02–LO05 also skipped on Android CI** (`process.env.CI && driver.isAndroid`) — the GPS warm-up races and crashes UIA2 on the GHA Pixel-6 AVD, the reloaded session stays dead, and the cascade kills Products/Checkout/Regression. LO01 + denied path LO06–LO08 still run on CI; all of LO01–LO08 run locally on Pixel 8. Guard is **not** iOS-gated. Module is local Pixel 8 (full) + CI Pixel 6 (LO01/LO06–LO08) until `mobile: setGeoLocation` injection, adb-reboot recovery, or real-device cloud is wired. |
-| **Dark Mode (03/11)** | 29 | 35 | No version-gated widgets. Cross-cutting smoke that visits every previously-tested page in dark mode and validates AppBar background via 3-spot pixel sampling. Location step is skipped on Pixel Tablet only (inherits 10/Location's GPS limitation). |
-| **Products + Search (04/01)** | 29 | 35 | No version-gated widgets. Pixel Tablet runs in **forced portrait** — orientation lock applied AFTER login via `mobile: shell` + `settings put system user_rotation 1`. Without rotation, Pixel Tablet's natural landscape (2560×1600) makes product cards taller than the viewport and NAF add-to-cart child Buttons don't enter the a11y tree. W3C `setOrientation` is a no-op on UIA2. No orientation revert in `afterAll` — Cart (04/02) chains off this state. |
-| **Cart (04/02)** | 29 | 35 | No version-gated widgets. Chains off Products' end-state (7-line cart, portrait lock inherited). `collectAllLines()` walks the cart ScrollView on phone (Compose virtualises rows past viewport); no-ops on tablet portrait where all 7 fit. Per-line NAF Buttons (Minus/Plus/Delete) resolved via direct `.click()` on line ImageView's Button children in DOM order — sidesteps the duplicate content-desc issue with PD02 color variants and the per-device coordinate-offset problem. Cart's `afterAll` reverts tablet to landscape at end of chain. |
-| **Checkout (04/03)** | 29 | 35 | No version-gated widgets. Chains off Cart's empty-state via Continue Shopping → Boho grid → `clearSearch()`. Adds 2–3 distinct random items via the Detail-page add path (the grid card direct-add icon collided with the Material snackbar's VIEW CART overlay on bottom-of-grid cards — reliable across runs only via Detail). Shipping fields are 7 NAF EditTexts at positional `instance(0–6)` wrapped in `UiScrollable.scrollIntoView`. Review Order line items are `View + descriptionContains("Qty:")` (different class than Cart's `ImageView` lines). Pixel Tablet verified (2026-05-20). |
+| Gestures (03/02) | 29 | 35 | No version-gated APIs. |
+| WebView (03/03) | 29 | 35 | No DOM verification (built without `WebContentsDebuggingEnabled`). |
+| Dialogs (03/04) | 29 | 35 | No version-gated APIs. |
+| Form Validation (03/05) | 29 | 35 | No version-gated APIs. |
+| Permissions (03/06) | 29 | 35 | API-29 AOSP dialog fallbacks retained; gated off on API 33+. |
+| **Notifications (03/07)** | **33** | **35** | `POST_NOTIFICATIONS` is API 33+ only; CI must run API 33+. |
+| Tabs & Navigation (03/08) | 29 | 35 | No version-gated APIs. |
+| Camera (03/09) | 30 | 35 | Android 11+ foreground-only permission dialog; no API-29 fallback. |
+| Location (03/10) | 29 | 35 | No version-gated APIs. (Tablet + Android-CI skips are device-specific — see CLAUDE.md.) |
+| Dark Mode (03/11) | 29 | 35 | No version-gated APIs. |
+| Products + Search (04/01) | 29 | 35 | No version-gated APIs. |
+| Cart (04/02) | 29 | 35 | No version-gated APIs. |
+| Checkout (04/03) | 29 | 35 | No version-gated APIs. |
 
 **Operating contract:**
 - Adding a new module → declare its min API + reason. If hardware-feature-gated, document the workaround.
@@ -51,24 +51,24 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 
 | Module | iPhone 15 | Notes |
 |---|---|---|
-| §0 Smoke | ✅ | Verified green on CI run 26081190412 (2.9 min). Selectors: title `~DemoApp`, fields `~Username`/`~Password`, login `~Login`, Landing's `~Shop All`, drawer `~Logout` — all via Appium's `~` finder name-fallback. Full TC-SM01 round-trip (launch → login → Landing → logout → Login) passes. |
-| §1 Auth (01) | ✅ | Verified green on CI (TC-L01–L06, N01–N03). passwordToggle = nameless-visible-button predicate; mainError / field errors via `BEGINSWITH` predicates; typing uses `addValue` (not `setValue`) so the Flutter validator's controller sees input; persisted-session reset (noReset survives terminate/launch). |
-| §2 Catalog (02) | ✅ | Verified green on CI run 26205157543 (landing C01–C07 + categories C08–C11). resultCount = `name BEGINSWITH "Showing"`; cart/sort = positional app-bar nameless buttons (geometry helper, leftmost=sort/rightmost=cart); product cards via `name CONTAINS "$"` class chain; getFirstProductDetails iterates `$$` (positional `[1]`+waitForDisplayed false-negatives even when visible); deviceBack = left-edge swipe (Cupertino route pop). |
-| §3 Nav Main (03/01) | ✅ | Verified green on CI run 26209797847 (TC-M01–M03). Drawer items via `~<visible text>` name-fallback; dark-mode toggle = lone `XCUIElementTypeSwitch` (reads `value`). The drawer ScrollView is **not** safe-area inset on iOS → profile (zero-size) + Home (under the Dynamic Island) asserted as EXISTING, not displayed; `open()` is idempotent (a left-edge deviceBack can leave the drawer open, covering the hamburger); `close()` taps the scrim past the ~304px drawer. |
-| §3 Gestures (03/02) | ⏳ | Pinch/swipe should work via XCUITest W3C actions; canvas pixel sampling may need tuning for Retina (2× / 3× scale). |
-| §3 WebView (03/03) | ⏳ | WKWebView vs Android WebView — content-only assertions (Example Domain text) should port. |
-| §3 Dialogs (03/04) | ⏳ | iOS Alert / ActionSheet have different a11y types than Android dialog widgets. Expect significant branch divergence. |
-| §3 Form (03/05) | ⏳ | TextField positional `instance()` selectors don't exist on iOS — rebuild via `~labelText` matches. |
-| §3 Permissions (03/06) | ⏭ | iOS permission dialogs are system-level (springboard alerts), fundamentally different from Android runtime permissions. Port required, not adapt. |
-| §3 Notifications (03/07) | ⏭ | iOS notification model + permission UX differs; Simulator handles APNS differently. Defer. |
-| §3 Tabs (03/08) | ⏳ | Compose-style pager — iOS equivalent should expose tabs via `XCUIElementTypeTabBar` or similar. |
-| §3 Camera (03/09) | ⏭ | iOS Simulator has no camera. Stub or skip via runtime probe. |
-| §3 Location (03/10) | ⏳ | Use `xcrun simctl set <udid> location lat,lng` to inject fixes. iOS location-permission dialog is a separate spec branch. The Android-CI skip on TC-LO02–LO05 is **iOS-exempt** — the GPS-warm-up UIA2 crash is AVD-specific; on iOS the simulator + injected fixes should run the full granted path, and an iOS-green / Android-red split confirms the Android skip is a platform defect, not an app bug. |
-| §3 Dark Mode (03/11) | ⏳ | iOS dark mode toggles via system Appearance setting; in-app switch should still work. Pixel sampling tolerances may differ. |
-| §4 Products (04/01) | ⏳ | Detail page + add-to-cart. Snackbar equivalent on iOS is `XCUIElementTypeOther` overlay — different selector pattern. |
-| §4 Cart (04/02) | ⏳ | Chains off §4 Products. iOS rotation handling not needed (orientation lock is Android-specific). |
-| §4 Checkout (04/03) | ⏳ | Pure UI; should port cleanly once §4 Products is green. |
-| §16 Regression | ⏳ | Last; depends on §1–§14 being green on iOS. |
+| §0 Smoke | ✅ | Verified (run 26081190412). Login round-trip via `~` name-fallback selectors. |
+| §1 Auth (01) | ✅ | Verified (L01–L06, N01–N03). Typing via `addValue`; errors via `BEGINSWITH` predicates. |
+| §2 Catalog (02) | ✅ | Verified (run 26205157543). App-bar buttons by geometry; product cards via `$` class chain. |
+| §3 Nav Main (03/01) | ✅ | Verified (run 26209797847). Drawer items by `~` text; off-screen items asserted as existing, not displayed. |
+| §3 Gestures (03/02) | ✅ | Verified (run 26269338264). Gestures via XCUITest; drag-reorder uses visible-row geometry for an iOS a11y quirk. |
+| §3 WebView (03/03) | ⏳ | Content-only text assertions should port (WKWebView). |
+| §3 Dialogs (03/04) | ⏳ | iOS Alert/ActionSheet a11y differs; expect branch divergence. |
+| §3 Form (03/05) | ⏳ | Rebuild positional field selectors via `~labelText`. |
+| §3 Permissions (03/06) | ⏭ | System-level springboard dialogs — deferred to real-device cloud. |
+| §3 Notifications (03/07) | ⏭ | Notification/APNS model differs — deferred to real-device cloud. |
+| §3 Tabs (03/08) | ⏳ | Tabs via `XCUIElementTypeTabBar`. |
+| §3 Camera (03/09) | ⏭ | Simulator has no camera — deferred to real-device cloud. |
+| §3 Location (03/10) | ⏳ | Inject fixes via `xcrun simctl location`; Android-CI LO02–LO05 skip is iOS-exempt. |
+| §3 Dark Mode (03/11) | ⏳ | System Appearance + in-app switch; pixel tolerances may differ. |
+| §4 Products (04/01) | ⏳ | Snackbar = `XCUIElementTypeOther` overlay selector. |
+| §4 Cart (04/02) | ⏳ | Chains off Products; no iOS rotation needed. |
+| §4 Checkout (04/03) | ⏳ | Pure UI; ports once Products green. |
+| §16 Regression | ⏳ | Last; depends on §1–§14 green. |
 
 **Operating contract for iOS:**
 - Selector iteration is gated by the `_iosFailureDiagnostic` fixture — every iOS test failure on CI leaves `test-results/diagnostics/<slug>-source.xml` + `-screenshot.png`. **Always** verify a proposed iOS selector against fresh XML before pushing, the same way the Android suite verifies against `dumps/*.xml`.
