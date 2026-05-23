@@ -140,6 +140,12 @@ jobs:
           echo "Simulator UDID: $UDID"
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
+          # Seed a simulated GPS fix (Singapore — taqelah.sg's nominal context)
+          # so the Location screen's Current Location card can render once
+          # permission is granted. The Android lane injects this per-test via
+          # `mobile: setGeolocation`; on iOS Simulator it's a device-level
+          # setting, so set it once here at boot.
+          xcrun simctl location "$UDID" set 1.2966,103.8547 || true
           echo "udid=$UDID" >> $GITHUB_OUTPUT
 
       - name: Pre-install app to Simulator
@@ -174,7 +180,7 @@ jobs:
         # its own state via fullResetAndLogin (terminateApp/launchApp on iOS).
         # Modules are added incrementally as iOS selectors are verified
         # (see TEST_PLAN.md → iOS Coverage Matrix).
-        run: npx playwright test tests/specs/00_smoke tests/specs/01_auth tests/specs/02_catalog tests/specs/03_nav/01_main_nav.spec.js tests/specs/03_nav/02_gestures.spec.js tests/specs/03_nav/03_webview.spec.js tests/specs/03_nav/04_dialogs.spec.js tests/specs/03_nav/05_form.spec.js tests/specs/03_nav/08_tabs.spec.js
+        run: npx playwright test tests/specs/00_smoke tests/specs/01_auth tests/specs/02_catalog tests/specs/03_nav/01_main_nav.spec.js tests/specs/03_nav/02_gestures.spec.js tests/specs/03_nav/03_webview.spec.js tests/specs/03_nav/04_dialogs.spec.js tests/specs/03_nav/05_form.spec.js tests/specs/03_nav/08_tabs.spec.js tests/specs/03_nav/10_location.spec.js
 
       - name: Upload Report
         uses: actions/upload-artifact@v4

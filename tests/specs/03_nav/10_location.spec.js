@@ -44,10 +44,28 @@ async function gotoLocationFresh(driver) {
   const navMenu = new NavMenuPage(driver);
   const locationPage = new LocationPage(driver);
 
-  await locationPage.resetLocationPermission();
+  // Reset to a cold app state so the OS permission dialog re-prompts.
+  //   Android — resetLocationPermission() does pm clear + relaunch.
+  //   iOS — no pm-clear equivalent; terminate + relaunch (noReset persists
+  //     data, so the app may resume already logged in → conditional login
+  //     below, mirrors catalog's fullResetAndLogin). On CI's fresh simulator
+  //     the app has never requested location, so the first Location-screen
+  //     entry still surfaces the system dialog.
+  if (locationPage.isAndroid) {
+    await locationPage.resetLocationPermission();
+  } else {
+    await driver.execute('mobile: terminateApp', { bundleId: locationPage.appPackage });
+    await driver.pause(1500);
+    await driver.execute('mobile: launchApp', { bundleId: locationPage.appPackage });
+    await driver.pause(1500);
+  }
 
-  await loginPage.waitForDisplayed(loginPage.loginButton, 15000);
-  await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
+  // Log in only if the Login screen is actually present (Android pm clear
+  // always lands here; iOS may resume an authenticated session).
+  if (await loginPage.isVisible(loginPage.loginButton)) {
+    await loginPage.waitForDisplayed(loginPage.loginButton, 15000);
+    await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
+  }
   await landingPage.waitForDisplayed(landingPage.shopAllBtn, 15000);
 
   await navMenu.open();
@@ -331,7 +349,8 @@ test.describe('Navigation - Location Suite — Denied Path (TC-LO06-LO08)', () =
     expect(pkg).toBe('com.android.settings');
 
     // Back to the DemoApp — denied state must still be shown.
-    await driver.back();
+    // deviceBack() — driver.back() no-ops on iOS.
+    await locationPage.deviceBack();
     await driver.pause(1500);
     await locationPage.waitForDeniedState();
     expect(await locationPage.isVisible(locationPage.permissionDeniedText)).toBe(true);

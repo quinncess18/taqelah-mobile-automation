@@ -4,7 +4,7 @@ Defines the test coverage and verification strategy for the Taqelah mobile appli
 
 **Current scope:** Android emulators — Pixel 8 (API 35, local) + Pixel Tablet (API 35, local) for full coverage; CI runs Pixel 6 profile at API 34 (Android 14, google_apis target). 96 TCs across 17 sections verified on local Pixel 8 + Tablet (§0 Smoke, §1–§14 unit modules, §15 Checkout, §16 Regression) — Pixel Tablet skips the 8 Location TCs (AVD GPS emits no fixes). §0 Smoke runs first as a foundation gate (~30s), §16 Regression runs last as a deep cross-module E2E. CI on API 34 with `retries: 2` to absorb emulator flake.
 
-**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5). Verified green: §0 Smoke, §1 Auth, §2 Catalog, §3 Nav Main (03/01), §3 Gestures (03/02), §3 WebView (03/03), §3 Dialogs (03/04), §3 Form (03/05); remaining modules pending selector iteration (see iOS Coverage Matrix). Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
+**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5). Verified green: §0 Smoke, §1 Auth, §2 Catalog, §3 Nav Main (03/01), §3 Gestures (03/02), §3 WebView (03/03), §3 Dialogs (03/04), §3 Form (03/05), §3 Tabs (03/08); remaining modules pending selector iteration (see iOS Coverage Matrix). Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
 
 > Status legend: ✅ Verified · ⚠️ Under investigation · ⏳ Pending · — Not applicable
 
@@ -61,7 +61,7 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 | §3 Form (03/05) | ✅ | Verified (run 26322861252). Text fields by visible label (`~Name`/`~Email`/`~Phone`/`~Number (1-100)`/`~Password`); Date/Time `~Date`/`~Time`; Rating has no `XCUIElementTypeSlider` — predicate-matched (`value ENDSWITH "%"` / `name ENDSWITH "/5"`), drag via `dragFromToForDuration`. iPhone lands Rating at bottom fold (gated `isTablet \|\| isIOS`). Keyboard dismiss Android-only (iOS WDA has no generic dismiss). |
 | §3 Permissions (03/06) | ⏭ | System-level springboard dialogs — deferred to real-device cloud. |
 | §3 Notifications (03/07) | ⏭ | Notification/APNS model differs — deferred to real-device cloud. |
-| §3 Tabs (03/08) | ⏳ | Tabs via `XCUIElementTypeTabBar`. |
+| §3 Tabs (03/08) | ✅ | Verified (run 26331896225). Tabs/pager/page-hint carry the same labels as Android content-desc but multi-line → name-prefix predicates (`name BEGINSWITH …`); `~` exact-match can't match the newline. No `selected` attr on iOS: top tabs encode selection by element type (selected=`Other`, unselected=`StaticText`), bottom nav by `value="1"` on Buttons — `isSelected` handles both. Search/section bodies via `name CONTAINS`. |
 | §3 Camera (03/09) | ⏭ | Simulator has no camera — deferred to real-device cloud. |
 | §3 Location (03/10) | ⏳ | Inject fixes via `xcrun simctl location`; Android-CI LO02–LO05 skip is iOS-exempt. |
 | §3 Dark Mode (03/11) | ⏳ | System Appearance + in-app switch; pixel tolerances may differ. |
