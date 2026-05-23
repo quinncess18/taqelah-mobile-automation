@@ -81,10 +81,12 @@ class TabsPage extends BasePage {
   /**
    * Whether a tab / bottom-nav item is selected.
    *   Android — reads the `selected` attribute.
-   *   iOS — XCUITest exposes no `selected` attr; the live tree (run
-   *     26330708106 T01) encodes selection by element TYPE: the selected
-   *     item is an XCUIElementTypeOther, unselected siblings are
-   *     XCUIElementTypeStaticText. Read the matched node's `type`.
+   *   iOS — XCUITest exposes no `selected` attr; the live tree encodes
+   *     selection two ways depending on the control:
+   *       top tabs   — selected node is XCUIElementTypeOther, unselected
+   *                    siblings are XCUIElementTypeStaticText (run 26330708106 T01).
+   *       bottom nav — every item is a Button; the selected one carries
+   *                    value="1", unselected have no value (run 26331284727 T04).
    */
   async isSelected(selector) {
     const el = await this.driver.$(selector);
@@ -93,7 +95,9 @@ class TabsPage extends BasePage {
       return v === 'true' || v === '1';
     }
     const type = await el.getAttribute('type');
-    return type === 'XCUIElementTypeOther';
+    if (type === 'XCUIElementTypeOther') return true;
+    const value = await el.getAttribute('value');
+    return value === '1';
   }
 
   async tapFeedTab() {
