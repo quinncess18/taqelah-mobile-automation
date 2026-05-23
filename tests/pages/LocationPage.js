@@ -62,9 +62,12 @@ class LocationPage extends BasePage {
     // Current Location card content-desc concatenates all 5 fields with
     // newlines. We match the prefix so a regex check on the full value
     // can verify field presence.
+    // iOS: the card is a StaticText whose name/label is the full field block
+    // ("Current Location\nLatitude\n…") — run 26334076492 LO02 dump. `~` can't
+    // match the newline, so prefix-predicate on the leading text.
     this.currentLocationCard = this.isAndroid
       ? 'android=new UiSelector().descriptionStartsWith("Current Location")'
-      : '~current-location-card';
+      : '-ios predicate string:name BEGINSWITH "Current Location"';
 
     // ── Denied state ──
     this.permissionDeniedText = this.isAndroid

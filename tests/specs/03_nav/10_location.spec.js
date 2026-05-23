@@ -215,7 +215,7 @@ test.describe('Navigation - Location Suite — Granted Path (TC-LO01-LO05)', () 
     expect(await locationPage.isVisible(locationPage.permissionDeniedText)).toBe(false);
 
     // Current Location card carries all 5 fields concatenated with newlines.
-    const cardDesc = String(await (await driver.$(locationPage.currentLocationCard)).getAttribute('content-desc'));
+    const cardDesc = String(await (await driver.$(locationPage.currentLocationCard)).getAttribute(locationPage.attrName));
     expect(cardDesc).toMatch(CURRENT_LOCATION_RE);
   });
 

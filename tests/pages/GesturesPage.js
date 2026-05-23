@@ -482,16 +482,21 @@ class GesturesPage extends BasePage {
         // iOS: a drag without a brief touch-hold after pointerDown is NOT
         // registered as a scroll by Flutter — BasePage.swipe moves immediately,
         // so the page never scrolled (run 26333525886: Double Tap canvas stuck
-        // at y=783/852 through all 8 attempts). Mirror the working
-        // LocationPage._swipeUp: center-x, 100ms hold after touchdown, then move.
+        // at y=783/852). Mirror LocationPage._swipeUp: center-x, 100ms hold,
+        // then move. Start the swipe at mid-screen (0.5h) NOT 0.7h: the lower
+        // band can sit on the nested ReorderableListView (drag items), which
+        // captures the gesture and scrolls its own short list instead of the
+        // page (run 26334076492 M08 reset: scroll-to-longpress no-op'd because
+        // the swipe landed on the drag list). Mid-screen lands on headers /
+        // swipe-cards (which only capture horizontal), so the page scrolls.
         const x = Math.round(width / 2);
         await this.driver.performActions([{
           type: 'pointer', id: 'finger1', parameters: { pointerType: 'touch' },
           actions: [
-            { type: 'pointerMove', duration: 0, x, y: Math.round(height * 0.7) },
+            { type: 'pointerMove', duration: 0, x, y: Math.round(height * 0.5) },
             { type: 'pointerDown', button: 0 },
             { type: 'pause', duration: 100 },
-            { type: 'pointerMove', duration: 400, x, y: Math.round(height * 0.3) },
+            { type: 'pointerMove', duration: 400, x, y: Math.round(height * 0.12) },
             { type: 'pointerUp', button: 0 },
           ],
         }]);
