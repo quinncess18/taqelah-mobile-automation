@@ -101,12 +101,15 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
     expect(await formPage.isVisible(formPage.sizeLarge)).toBe(true);
     expect(await formPage.isVisible(formPage.subscribeSwitch)).toBe(true);
 
-    // Tablet pushes Rating below Subscribe (bottom fold); phone keeps it
-    // top-fold. Use the project's `width > 1200` tablet heuristic.
+    // Tablet pushes Rating below Subscribe (bottom fold); Android phone keeps
+    // it top-fold. iOS (iPhone 15, 393×852) also lands Rating at the very
+    // bottom edge (y≈851, seekbar children visible=false) — F01 dump run
+    // 26322345538 — so iOS behaves like the tablet bottom-fold layout.
     const { width: vw } = await driver.getWindowRect();
     const isTablet = vw > 1200;
+    const ratingBelowFold = isTablet || driver.isIOS;
 
-    if (!isTablet) {
+    if (!ratingBelowFold) {
       expect(await formPage.isVisible(formPage.ratingLabel)).toBe(true);
       expect(await formPage.isVisible(formPage.ratingSeekBar)).toBe(true);
       expect(await formPage.getRatingText()).toBe('3/5');
@@ -114,7 +117,7 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
 
     await scrollToBottom(driver, formPage);
 
-    if (isTablet) {
+    if (ratingBelowFold) {
       expect(await formPage.isVisible(formPage.ratingLabel)).toBe(true);
       expect(await formPage.isVisible(formPage.ratingSeekBar)).toBe(true);
       expect(await formPage.getRatingText()).toBe('3/5');

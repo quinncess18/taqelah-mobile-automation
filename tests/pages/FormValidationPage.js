@@ -44,11 +44,15 @@ class FormValidationPage extends BasePage {
       `android=new UiScrollable(new UiSelector().scrollable(true).instance(0))` +
       `.scrollIntoView(new UiSelector().className("android.widget.EditText").instance(${n}))`;
 
-    this.nameInput     = this.isAndroid ? scrollEditText(0) : '~name-input';
-    this.emailInput    = this.isAndroid ? scrollEditText(1) : '~email-input';
-    this.phoneInput    = this.isAndroid ? scrollEditText(2) : '~phone-input';
-    this.numberInput   = this.isAndroid ? scrollEditText(3) : '~number-input';
-    this.passwordInput = this.isAndroid ? scrollEditText(4) : '~password-input';
+    // iOS: Flutter TextFields surface with name/label = the field's visible
+    // label (verified vs run 26322345538 F01 dump: name="Name", "Email",
+    // "Phone", "Number (1-100)", "Password"). Key() does NOT reach
+    // accessibilityIdentifier, so `~<label>` name-fallback is the contract.
+    this.nameInput     = this.isAndroid ? scrollEditText(0) : '~Name';
+    this.emailInput    = this.isAndroid ? scrollEditText(1) : '~Email';
+    this.phoneInput    = this.isAndroid ? scrollEditText(2) : '~Phone';
+    this.numberInput   = this.isAndroid ? scrollEditText(3) : '~Number (1-100)';
+    this.passwordInput = this.isAndroid ? scrollEditText(4) : '~Password';
 
     // ── Category Dropdown ──
     this.categoryBtn = this.isAndroid
@@ -87,23 +91,28 @@ class FormValidationPage extends BasePage {
       ? 'android=new UiSelector().description("Rating")'
       : '~Rating';
 
+    // iOS: no XCUIElementTypeSlider — the Flutter slider surfaces as an
+    // adjustable Other whose `value` is the percentage (e.g. "50%"); the
+    // "N/5" label is a separate StaticText. Match by attribute shape
+    // (F01 dump, run 26322345538) since neither has a stable name/id.
     this.ratingSeekBar = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.SeekBar")'
-      : '~rating-seekbar';
+      : '-ios predicate string:value ENDSWITH "%"';
 
     this.ratingValue = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("/5")'
-      : '~rating-value';
+      : '-ios predicate string:name ENDSWITH "/5"';
 
     // ── Date Picker (reuses Dialogs & Alerts popup) ──
+    // iOS: input row exposes name="Date" (F01 dump). `~Date` name-fallback.
     this.dateInput = this.isAndroid
       ? '//android.view.View[@hint="Date"]'
-      : '~date-input';
+      : '~Date';
 
     // ── Time Picker (reuses Dialogs & Alerts popup) ──
     this.timeInput = this.isAndroid
       ? '//android.view.View[@hint="Time"]'
-      : '~time-input';
+      : '~Time';
 
     // Date/Time picker dialog selectors (OK, year dropdown, dial geometry, etc.)
     // are owned by DialogsPage and accessed via this._dialogs.
@@ -426,9 +435,12 @@ class FormValidationPage extends BasePage {
     const el = await this.driver.$(this.ratingSeekBar);
     const size = await el.getSize();
     const loc = await el.getLocation();
-    // Read current thumb position from content-desc (e.g. "50%, 3"); fall
-    // back to 50% if the format ever changes — non-fatal, drag still works.
-    const currentDesc = await el.getAttribute('content-desc');
+    // Read current thumb position: Android content-desc "50%, 3"; iOS value
+    // "50%". Fall back to 50% if the format ever changes — non-fatal, drag
+    // still works.
+    const currentDesc = this.isAndroid
+      ? await el.getAttribute('content-desc')
+      : await el.getAttribute('value');
     const currentPct = parseInt(String(currentDesc).match(/(\d+)%/)?.[1] || '50', 10);
     // Inset by a few px so we never tap exactly on the bar's edge.
     const inset = 4;
@@ -588,22 +600,39 @@ class FormValidationPage extends BasePage {
   async getRatingText() {
     await this._scrollRatingIntoView();
     const el = await this.driver.$(this.ratingValue);
-    return await el.getAttribute('content-desc');
+    // Android surfaces "N/5" on content-desc; iOS on the StaticText's value/label.
+    if (this.isAndroid) return await el.getAttribute('content-desc');
+    const value = await el.getAttribute('value');
+    if (value && value !== 'null') return value;
+    return await el.getAttribute('label');
   }
 
   /**
-   * Scroll the Rating SeekBar into view via UiScrollable. Used by setRating
-   * and getRatingText so they work regardless of fold position. iOS no-op —
-   * iOS auto-scrolls EditText fields by default; revisit when iOS is wired.
+   * Scroll the Rating SeekBar into view so setRating/getRatingText work
+   * regardless of fold position.
+   *   Android — UiScrollable.scrollIntoView (deterministic).
+   *   iOS — Rating sits at the bottom fold (F01 dump); the slider has no
+   *     XCUIElementTypeSlider and reports zero bounds while off-screen, so
+   *     swipe up (bounded) until the value label "N/5" is displayed. Generic
+   *     gesture, stops on the element — no hardcoded thumb coordinates.
    */
   async _scrollRatingIntoView() {
-    if (!this.isAndroid) return;
-    try {
-      await this.driver.$(
-        'android=new UiScrollable(new UiSelector().scrollable(true).instance(0)).scrollIntoView(new UiSelector().className("android.widget.SeekBar"))'
-      );
-    } catch {
-      // Already in view or layout doesn't have a scrollable container.
+    if (this.isAndroid) {
+      try {
+        await this.driver.$(
+          'android=new UiScrollable(new UiSelector().scrollable(true).instance(0)).scrollIntoView(new UiSelector().className("android.widget.SeekBar"))'
+        );
+      } catch {
+        // Already in view or layout doesn't have a scrollable container.
+      }
+      return;
+    }
+    // iOS: bounded swipe-to-surface.
+    const { width, height } = await this.driver.getWindowRect();
+    const safeX = Math.round(width * 0.3);
+    for (let i = 0; i < 4; i++) {
+      if (await this.isVisible(this.ratingValue)) return;
+      await this.swipe(safeX, Math.round(height * 0.7), safeX, Math.round(height * 0.4), 600);
     }
   }
 
