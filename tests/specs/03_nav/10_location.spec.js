@@ -181,12 +181,20 @@ test.describe('Navigation - Location Suite — Granted Path (TC-LO01-LO05)', () 
     locationPage = await replayGrantedPathUpTo(driver, tc);
   });
 
-  test('TC-LO01: should display the OS Location permission dialog on first cold entry', async () => {
+  test('TC-LO01: should display the OS Location permission dialog on first cold entry', async ({ driver }) => {
     expect(await locationPage.isDialogDisplayed()).toBe(true);
     // While using is the path we drive; Don't allow is the deny option.
     // (Precise/Approximate toggle is API-31+; not asserted to keep API floor at 29.)
-    expect(await locationPage.isVisible(locationPage.allowWhileUsingBtn)).toBe(true);
-    expect(await locationPage.isVisible(locationPage.denyBtn)).toBe(true);
+    if (driver.isAndroid) {
+      expect(await locationPage.isVisible(locationPage.allowWhileUsingBtn)).toBe(true);
+      expect(await locationPage.isVisible(locationPage.denyBtn)).toBe(true);
+    } else {
+      // iOS: the prompt is a SpringBoard system alert (not in page source) —
+      // assert its buttons via the alert API. Labels from the LO01 screenshot.
+      const btns = await locationPage.getDialogButtons();
+      expect(btns).toContain('Allow While Using App');
+      expect(btns).toContain("Don't Allow");
+    }
   });
 
   test('TC-LO02: should reveal the idle granted screen (Current Location card + Refresh + Start Tracking) after tapping "While using the app"', async ({ driver }) => {

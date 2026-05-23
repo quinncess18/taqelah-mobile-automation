@@ -383,9 +383,16 @@ class GesturesPage extends BasePage {
   async doubleTapZoomCanvas() {
     const { width } = await this.driver.getWindowRect();
 
-    // Tablet: label is visible but canvas is cropped — scroll until Pinch header appears,
-    // which guarantees the full canvas above it is in view.
-    if (width > 1200) {
+    // Scroll until the Pinch header appears, which guarantees the full canvas
+    // above it is in view AND that pinchArea reports an on-screen y (the tap
+    // coordinate below is the midpoint between the label and pinchArea).
+    //   Tablet — label visible but canvas cropped.
+    //   iOS — the Double Tap canvas lands at the bottom fold (label ~93% of
+    //     height) with pinchArea off-screen (visible=false, y≈0); without this
+    //     scroll tapY collapses to mid-screen and the double-tap misses the
+    //     canvas entirely (run 26331896225 M07 first-attempt flake). Android
+    //     phone keeps the canvas top-fold, so it stays exempt.
+    if (width > 1200 || this.isIOS) {
       await this.scrollToSection(this.pinchArea);
     }
 

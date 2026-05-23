@@ -182,12 +182,39 @@ class LocationPage extends BasePage {
 
   // ── OS Dialog ────────────────────────────────────────────────────────
 
+  // iOS: the location permission prompt is a SpringBoard system alert in a
+  // separate process — it is NOT in the app's page source (run 26332984454
+  // LO01 dump: 3.4KB, no XCUIElementTypeAlert), so `~`/predicate finders never
+  // see it. Drive it through the XCUITest alert API instead. Button labels
+  // from the LO01 screenshot: "Allow Once" / "Allow While Using App" /
+  // "Don't Allow".
+  static get IOS_ALERT_ALLOW_WHILE_USING() { return 'Allow While Using App'; }
+  static get IOS_ALERT_DENY() { return "Don't Allow"; }
+
+  /** Button labels on the currently-shown alert (iOS), or [] if none. */
+  async getDialogButtons() {
+    if (this.isAndroid) return [];
+    try {
+      return await this.driver.execute('mobile: alert', { action: 'getButtons' });
+    } catch {
+      return [];
+    }
+  }
+
   async waitForDialog(timeout = 10000) {
-    await this.waitForDisplayed(this.allowWhileUsingBtn, timeout);
+    if (this.isAndroid) {
+      await this.waitForDisplayed(this.allowWhileUsingBtn, timeout);
+      return;
+    }
+    await this.driver.waitUntil(async () => await this.isDialogDisplayed(), {
+      timeout, interval: 500, timeoutMsg: 'iOS location permission alert did not appear',
+    });
   }
 
   async isDialogDisplayed() {
-    return await this.isVisible(this.allowWhileUsingBtn);
+    if (this.isAndroid) return await this.isVisible(this.allowWhileUsingBtn);
+    // getAlertText throws (no such alert) when none is present.
+    try { await this.driver.getAlertText(); return true; } catch { return false; }
   }
 
   /**
@@ -196,7 +223,11 @@ class LocationPage extends BasePage {
    */
   async acceptWhileUsing() {
     await this.waitForDialog();
-    await (await this.driver.$(this.allowWhileUsingBtn)).click();
+    if (this.isAndroid) {
+      await (await this.driver.$(this.allowWhileUsingBtn)).click();
+    } else {
+      await this.driver.execute('mobile: alert', { action: 'accept', buttonLabel: LocationPage.IOS_ALERT_ALLOW_WHILE_USING });
+    }
     await this.driver.pause(2000);
   }
 
@@ -205,7 +236,11 @@ class LocationPage extends BasePage {
    */
   async denyLocation() {
     await this.waitForDialog();
-    await (await this.driver.$(this.denyBtn)).click();
+    if (this.isAndroid) {
+      await (await this.driver.$(this.denyBtn)).click();
+    } else {
+      await this.driver.execute('mobile: alert', { action: 'accept', buttonLabel: LocationPage.IOS_ALERT_DENY });
+    }
     await this.driver.pause(1500);
   }
 
