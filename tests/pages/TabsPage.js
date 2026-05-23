@@ -64,7 +64,11 @@ class TabsPage extends BasePage {
 
   async waitForPageLoad() {
     await this.waitForDisplayed(this.screenTitle, 10000);
-    await this.waitForDisplayed(this.feedTab, 5000);
+    // Title is the universal load anchor. The tab strip is content (T01
+    // asserts it). iOS tab selectors are unverified pending the a11y harvest,
+    // so gate the strip wait to Android — otherwise iOS beforeAll dies here
+    // before any test body runs and the failure-dump fixture never fires.
+    if (this.isAndroid) await this.waitForDisplayed(this.feedTab, 5000);
   }
 
   /**
