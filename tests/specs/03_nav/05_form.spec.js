@@ -33,7 +33,11 @@ async function waitForToastOrDump(driver, selector, label) {
 
 // An open soft keyboard shrinks the scrollable viewport and can hide the
 // bottom-fold (Submit/Reset) from both tap and the a11y tree.
+// Android-only: iOS WebDriverAgent has no generic keyboard dismiss
+// ("Did not know how to dismiss the keyboard" 400) and the swipe/scroll
+// gestures dismiss the iOS keyboard naturally, so the call is pure noise.
 async function hideKeyboard(driver) {
+  if (!driver.isAndroid) return;
   try {
     await driver.execute('mobile: hideKeyboard');
   } catch {

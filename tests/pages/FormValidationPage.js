@@ -218,7 +218,12 @@ class FormValidationPage extends BasePage {
     // NEXT typeIntoField's instance(N) selector resolves against a
     // narrowed tree and can land on the wrong field — e.g. Phone value
     // ending up in the Number field on CI's slower Flutter rendering.
-    try { await this.driver.hideKeyboard(); } catch { /* keyboard not up */ }
+    // Android-only: iOS WDA has no generic keyboard dismiss (400 "Did not
+    // know how to dismiss the keyboard") and iOS uses stable ~label
+    // selectors immune to tree narrowing, so the call is unneeded noise.
+    if (this.isAndroid) {
+      try { await this.driver.hideKeyboard(); } catch { /* keyboard not up */ }
+    }
     await this.driver.pause(300);
   }
 
