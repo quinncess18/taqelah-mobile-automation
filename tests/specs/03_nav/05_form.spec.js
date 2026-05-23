@@ -69,10 +69,11 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
     formPage = new FormValidationPage(driver);
 
     // SELF-HEALING: return to the DemoApp Homepage if deep-linked.
+    // deviceBack() (app-bar Back / edge-swipe) — driver.back() no-ops on iOS.
     let onHome = await landingPage.isVisible(landingPage.shopAllBtn);
     let retryCount = 0;
     while (!onHome && retryCount < 3) {
-      await driver.back();
+      await landingPage.deviceBack();
       await driver.pause(1000);
       onHome = await landingPage.isVisible(landingPage.shopAllBtn);
       retryCount++;
@@ -296,7 +297,8 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
     expect(await formPage.getRatingText()).toBe('1/5');
 
     // Leave the form and return via the menu.
-    await driver.back();
+    // deviceBack() (app-bar Back / edge-swipe) — driver.back() no-ops on iOS.
+    await formPage.deviceBack();
     await driver.pause(1000);
     await navMenu.open();
     await navMenu.navigateTo(navMenu.navForm);
