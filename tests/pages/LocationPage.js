@@ -189,7 +189,10 @@ class LocationPage extends BasePage {
   // from the LO01 screenshot: "Allow Once" / "Allow While Using App" /
   // "Don't Allow".
   static get IOS_ALERT_ALLOW_WHILE_USING() { return 'Allow While Using App'; }
-  static get IOS_ALERT_DENY() { return "Don't Allow"; }
+  // iOS renders the deny label with a typographic apostrophe (U+2019), not a
+  // straight ' (run 26333525886 LO01: ["…","Allow While Using App","Don’t Allow"]).
+  // `mobile: alert` button matching is exact, so this must be the curly form.
+  static get IOS_ALERT_DENY() { return 'Don’t Allow'; }
 
   /** Button labels on the currently-shown alert (iOS), or [] if none. */
   async getDialogButtons() {
@@ -239,7 +242,12 @@ class LocationPage extends BasePage {
     if (this.isAndroid) {
       await (await this.driver.$(this.denyBtn)).click();
     } else {
-      await this.driver.execute('mobile: alert', { action: 'accept', buttonLabel: LocationPage.IOS_ALERT_DENY });
+      // Resolve the live deny label so we tap the exact string regardless of
+      // straight vs curly apostrophe across iOS versions; fall back to the
+      // known curly form.
+      const buttons = await this.getDialogButtons();
+      const deny = buttons.find((b) => /^Don.t Allow$/.test(b)) || LocationPage.IOS_ALERT_DENY;
+      await this.driver.execute('mobile: alert', { action: 'accept', buttonLabel: deny });
     }
     await this.driver.pause(1500);
   }

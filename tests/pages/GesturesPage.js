@@ -479,8 +479,23 @@ class GesturesPage extends BasePage {
           direction: 'down', percent: isTablet ? 2.0 : 3.0,
         });
       } else {
-        // iOS: x=20 mirrors Android safe margin; verify canvas bounds when iOS testing begins
-        await this.swipe(20, Math.round(height * 0.6), 20, Math.round(height * 0.25), 400);
+        // iOS: a drag without a brief touch-hold after pointerDown is NOT
+        // registered as a scroll by Flutter — BasePage.swipe moves immediately,
+        // so the page never scrolled (run 26333525886: Double Tap canvas stuck
+        // at y=783/852 through all 8 attempts). Mirror the working
+        // LocationPage._swipeUp: center-x, 100ms hold after touchdown, then move.
+        const x = Math.round(width / 2);
+        await this.driver.performActions([{
+          type: 'pointer', id: 'finger1', parameters: { pointerType: 'touch' },
+          actions: [
+            { type: 'pointerMove', duration: 0, x, y: Math.round(height * 0.7) },
+            { type: 'pointerDown', button: 0 },
+            { type: 'pause', duration: 100 },
+            { type: 'pointerMove', duration: 400, x, y: Math.round(height * 0.3) },
+            { type: 'pointerUp', button: 0 },
+          ],
+        }]);
+        await this.driver.releaseActions();
       }
       await this.driver.pause(500);
       centered = await this.isInsideViewport(selector);

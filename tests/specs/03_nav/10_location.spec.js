@@ -190,8 +190,10 @@ test.describe('Navigation - Location Suite — Granted Path (TC-LO01-LO05)', () 
       expect(await locationPage.isVisible(locationPage.denyBtn)).toBe(true);
     } else {
       // iOS: the prompt is a SpringBoard system alert (not in page source) —
-      // assert its buttons via the alert API. Labels from the LO01 screenshot.
-      const btns = await locationPage.getDialogButtons();
+      // assert its buttons via the alert API. iOS uses a typographic apostrophe
+      // (U+2019) in "Don't Allow"; normalize to a straight ' so the check is
+      // quote-style agnostic across iOS versions.
+      const btns = (await locationPage.getDialogButtons()).map((b) => b.replace(/[‘’]/g, "'"));
       expect(btns).toContain('Allow While Using App');
       expect(btns).toContain("Don't Allow");
     }
