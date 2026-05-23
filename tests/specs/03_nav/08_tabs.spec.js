@@ -20,10 +20,11 @@ test.describe('Navigation - Tabs & Navigation Suite (TC-T01-T06)', () => {
     tabsPage = new TabsPage(driver);
 
     // Heal back to Home if a prior spec left us elsewhere.
+    // deviceBack() (app-bar Back / edge-swipe) — driver.back() no-ops on iOS.
     let onHome = await landingPage.isVisible(landingPage.shopAllBtn);
     let retryCount = 0;
     while (!onHome && retryCount < 3) {
-      await driver.back();
+      await landingPage.deviceBack();
       await driver.pause(1000);
       onHome = await landingPage.isVisible(landingPage.shopAllBtn);
       retryCount++;
@@ -129,7 +130,8 @@ test.describe('Navigation - Tabs & Navigation Suite (TC-T01-T06)', () => {
     expect(onPage3).toBe(true);
 
     // Exit via Back, then re-enter from the nav drawer.
-    await driver.$(tabsPage.backBtn).click();
+    // deviceBack() (app-bar Back / edge-swipe) — driver.back() no-ops on iOS.
+    await tabsPage.deviceBack();
     await driver.pause(1000);
     await navMenu.open();
     await navMenu.navigateTo(navMenu.navTabs);
