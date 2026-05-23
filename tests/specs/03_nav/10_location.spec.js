@@ -94,7 +94,16 @@ async function gotoLocationFresh(driver) {
   // ~hundreds of ms after navigateTo returns. Without this wait, TC-LO01 /
   // TC-LO06 race the dialog and assert on an empty screen. The previous
   // green runs were timing-lucky.
-  await locationPage.waitForDialog(15000);
+  //
+  // iOS: the permission-dialog selectors are unverified (Android-shaped
+  // guesses) — a hard wait dies in beforeAll before any test body runs, so
+  // the failure-dump fixture never fires. Soft-wait on iOS so LO01/LO06
+  // bodies run and dump the real alert tree. Android keeps the hard gate.
+  if (locationPage.isAndroid) {
+    await locationPage.waitForDialog(15000);
+  } else {
+    try { await locationPage.waitForDialog(15000); } catch { /* harvest: body dumps the tree */ }
+  }
 
   return locationPage;
 }
