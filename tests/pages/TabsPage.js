@@ -24,60 +24,76 @@ class TabsPage extends BasePage {
       ? 'android=new UiSelector().description("Tabs & Navigation")'
       : '~Tabs & Navigation';
 
-    // Top tab strip
+    // Top tab strip.
+    // iOS (run 26330708106 T01 dump): tabs surface with the SAME label as the
+    // Android content-desc ("Feed\nTab 1 of 3"), but multi-line — the `~`
+    // finder is exact-match and can't match a newline, so use a name-prefix
+    // predicate. Selection is encoded by element TYPE, not a `selected` attr
+    // (selected = XCUIElementTypeOther, unselected = XCUIElementTypeStaticText)
+    // so we match by name only (any type) and read state in isSelected().
     this.feedTab = this.isAndroid
       ? 'android=new UiSelector().description("Feed\nTab 1 of 3")'
-      : '~Feed';
+      : '-ios predicate string:name BEGINSWITH "Feed"';
     this.searchTab = this.isAndroid
       ? 'android=new UiSelector().description("Search\nTab 2 of 3")'
-      : '~Search';
+      : '-ios predicate string:name BEGINSWITH "Search"';
     this.profileTab = this.isAndroid
       ? 'android=new UiSelector().description("Profile\nTab 3 of 3")'
-      : '~Profile';
+      : '-ios predicate string:name BEGINSWITH "Profile"';
 
-    // Feed pager content (page hint text)
+    // Feed pager content (page hint text). iOS name = "Page N of 3\nSwipe left
+    // or right" (multi-line) → prefix predicate (T01 dump).
     this.pageHint = (n) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("Page ${n} of 3")`
-      : `~Page ${n} of 3`;
+      : `-ios predicate string:name BEGINSWITH "Page ${n} of 3"`;
 
-    // Search tab body
+    // Search tab body. iOS pattern-guess (mirrors Android text; not yet
+    // reached — confirm against the next dump once tab-taps work).
     this.searchBody = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("Search Tab Content")'
-      : '~search-tab-body';
+      : '-ios predicate string:name CONTAINS "Search Tab Content"';
 
-    // Profile bottom nav buttons
+    // Profile bottom nav buttons. iOS pattern-guess: same "<Name>\nTab N of 3"
+    // label as Android; distinct leading word per item (Home/Favorites/
+    // Settings) keeps the prefix predicate unambiguous against the top tabs.
     this.bottomHome = this.isAndroid
       ? 'android=new UiSelector().description("Home\nTab 1 of 3")'
-      : '~bottom-home';
+      : '-ios predicate string:name BEGINSWITH "Home"';
     this.bottomFavorites = this.isAndroid
       ? 'android=new UiSelector().description("Favorites\nTab 2 of 3")'
-      : '~bottom-favorites';
+      : '-ios predicate string:name BEGINSWITH "Favorites"';
     this.bottomSettings = this.isAndroid
       ? 'android=new UiSelector().description("Settings\nTab 3 of 3")'
-      : '~bottom-settings';
+      : '-ios predicate string:name BEGINSWITH "Settings"';
 
-    // Profile body section text — pattern "Bottom navigation bar demo\n<Name> Section"
+    // Profile body section text — pattern "Bottom navigation bar demo\n<Name>
+    // Section". iOS pattern-guess (not yet reached).
     this.sectionBody = (name) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("${name} Section")`
-      : `~${name.toLowerCase()}-section`;
+      : `-ios predicate string:name CONTAINS "${name} Section"`;
   }
 
   async waitForPageLoad() {
     await this.waitForDisplayed(this.screenTitle, 10000);
-    // Title is the universal load anchor. The tab strip is content (T01
-    // asserts it). iOS tab selectors are unverified pending the a11y harvest,
-    // so gate the strip wait to Android — otherwise iOS beforeAll dies here
-    // before any test body runs and the failure-dump fixture never fires.
-    if (this.isAndroid) await this.waitForDisplayed(this.feedTab, 5000);
+    await this.waitForDisplayed(this.feedTab, 5000);
   }
 
   /**
-   * Read the `selected` attribute (true/false) of a selector. Returns a boolean.
+   * Whether a tab / bottom-nav item is selected.
+   *   Android — reads the `selected` attribute.
+   *   iOS — XCUITest exposes no `selected` attr; the live tree (run
+   *     26330708106 T01) encodes selection by element TYPE: the selected
+   *     item is an XCUIElementTypeOther, unselected siblings are
+   *     XCUIElementTypeStaticText. Read the matched node's `type`.
    */
   async isSelected(selector) {
     const el = await this.driver.$(selector);
-    const v = await el.getAttribute('selected');
-    return v === 'true' || v === '1';
+    if (this.isAndroid) {
+      const v = await el.getAttribute('selected');
+      return v === 'true' || v === '1';
+    }
+    const type = await el.getAttribute('type');
+    return type === 'XCUIElementTypeOther';
   }
 
   async tapFeedTab() {
