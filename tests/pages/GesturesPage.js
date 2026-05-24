@@ -252,6 +252,20 @@ class GesturesPage extends BasePage {
     // Wait for pan animation to fully settle before sampling pixels
     await this.driver.pause(this.settlePause);
 
+    // iOS cold-first-attempt guard: panCanvas can leak into a page scroll when
+    // the double-tap hasn't fully settled, leaving the canvas at the bottom
+    // fold with pinchArea off-screen. canvasBottom is then derived from an
+    // off-screen pinchArea and the sample lands in dead space near the home
+    // indicator → false (passes only on Playwright retry — run 26352407710
+    // M07 first-attempt flake). Re-assert pinchArea into the comfort viewport
+    // so the sample region tracks the real on-screen canvas. A page scroll
+    // does NOT reset the canvas's InteractiveViewer zoom/pan, so the
+    // double-tap result is preserved.
+    if (this.isIOS) {
+      await this.scrollToSection(this.pinchArea);
+      await this.driver.pause(this.settlePause);
+    }
+
     const label = await this.driver.$(this.doubleTapArea);
     const labelLoc = await label.getLocation();
     const labelSz = await label.getSize();
@@ -279,7 +293,22 @@ class GesturesPage extends BasePage {
     };
 
     let minBrightness = 255;
-    if (isTablet) {
+    if (this.isIOS) {
+      // iOS: the NW pan displaces the zoomed icon off a small center cross, and
+      // the cold-attempt scroll variance means the icon can land anywhere in
+      // the canvas. Scan a dense grid across the FULL content width (the label
+      // is narrow text; the canvas spans nearly the whole width), so the dark
+      // magnifier icon is caught wherever the pan placed it. The scroll guard
+      // above keeps canvasTop..canvasBottom on-screen, so every sample is in
+      // PNG bounds.
+      const scanLeft = 16;
+      const scanRight = screenWidth - 16;
+      for (let y = canvasTop + 10; y < canvasBottom - 10; y += 20) {
+        for (let x = scanLeft; x < scanRight; x += 20) {
+          minBrightness = Math.min(minBrightness, bright(x, y));
+        }
+      }
+    } else if (isTablet) {
       // Tablet: panCanvas moves the icon by ~2*0.35*sz.width (~1748px), pushing it well
       // outside a small cross at canvas center. Scan a dense grid across the whole canvas
       // so we catch the icon wherever pan has placed it.
