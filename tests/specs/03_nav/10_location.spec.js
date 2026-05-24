@@ -44,21 +44,14 @@ async function gotoLocationFresh(driver) {
   const navMenu = new NavMenuPage(driver);
   const locationPage = new LocationPage(driver);
 
-  // Reset to a cold app state so the OS permission dialog re-prompts.
-  //   Android — resetLocationPermission() does pm clear + relaunch.
-  //   iOS — no pm-clear equivalent; terminate + relaunch (noReset persists
-  //     data, so the app may resume already logged in → conditional login
-  //     below, mirrors catalog's fullResetAndLogin). On CI's fresh simulator
-  //     the app has never requested location, so the first Location-screen
-  //     entry still surfaces the system dialog.
-  if (locationPage.isAndroid) {
-    await locationPage.resetLocationPermission();
-  } else {
-    await driver.execute('mobile: terminateApp', { bundleId: locationPage.appPackage });
-    await driver.pause(1500);
-    await driver.execute('mobile: launchApp', { bundleId: locationPage.appPackage });
-    await driver.pause(1500);
-  }
+  // Reset to a cold app + permission state so the OS dialog re-prompts.
+  //   Android — pm clear + relaunch (also wipes login).
+  //   iOS — terminate + `simctl privacy reset location` + relaunch (noReset
+  //     persists both login AND the TCC grant, so without the privacy reset
+  //     the Denied-Path describe would land on the already-granted screen
+  //     with no dialog). Login is kept on iOS → conditional login below,
+  //     mirrors catalog's fullResetAndLogin.
+  await locationPage.resetLocationPermission();
 
   // Log in only if the Login screen is actually present (Android pm clear
   // always lands here; iOS may resume an authenticated session).
@@ -362,14 +355,23 @@ test.describe('Navigation - Location Suite — Denied Path (TC-LO06-LO08)', () =
     expect(await locationPage.isVisible(locationPage.currentLocationCard)).toBe(false);
   });
 
-  test('TC-LO07: should deep-link to Android Settings when Open Settings is tapped, and remain on the denied state on return', async ({ driver }) => {
+  test('TC-LO07: should deep-link to the OS Settings when Open Settings is tapped, and remain on the denied state on return', async ({ driver }) => {
     await locationPage.tapOpenSettings();
-    const pkg = await locationPage.getForegroundPackage();
-    expect(pkg).toBe('com.android.settings');
 
-    // Back to the DemoApp — denied state must still be shown.
-    // deviceBack() — driver.back() no-ops on iOS.
-    await locationPage.deviceBack();
+    if (driver.isAndroid) {
+      const pkg = await locationPage.getForegroundPackage();
+      expect(pkg).toBe('com.android.settings');
+      // Back to the DemoApp — denied state must still be shown.
+      await locationPage.deviceBack();
+    } else {
+      // iOS: Open Settings deep-links to the system Settings app
+      // (com.apple.Preferences). deviceBack() can't pop a cross-app
+      // navigation on iOS, so re-activate the AUT to return.
+      const info = await driver.execute('mobile: activeAppInfo');
+      expect(info.bundleId).toBe('com.apple.Preferences');
+      await driver.execute('mobile: activateApp', { bundleId: locationPage.appPackage });
+    }
+
     await driver.pause(1500);
     await locationPage.waitForDeniedState();
     expect(await locationPage.isVisible(locationPage.permissionDeniedText)).toBe(true);
@@ -379,18 +381,30 @@ test.describe('Navigation - Location Suite — Denied Path (TC-LO06-LO08)', () =
   test('TC-LO08: should suppress the OS dialog after a second deny and remain on the denied state on re-entry (permanent denial)', async ({ driver }) => {
     const navMenu = new NavMenuPage(driver);
 
-    // Leave + re-enter to surface the dialog for deny #2 (Android 13+
-    // re-prompts once after a single deny).
-    await driver.$(locationPage.backBtn).click();
-    await driver.pause(1000);
-    await navMenu.open();
-    await navMenu.navigateTo(navMenu.navLocation);
+    if (driver.isAndroid) {
+      // Android 13+ re-prompts ONCE after a single deny — leave + re-enter to
+      // surface the dialog for deny #2.
+      await driver.$(locationPage.backBtn).click();
+      await driver.pause(1000);
+      await navMenu.open();
+      await navMenu.navigateTo(navMenu.navLocation);
 
-    await locationPage.waitForDialog();
-    await locationPage.denyLocation();
-    await locationPage.waitForDeniedState();
+      await locationPage.waitForDialog();
+      await locationPage.denyLocation();
+      await locationPage.waitForDeniedState();
+    } else {
+      // iOS denies PERMANENTLY after the first "Don't Allow" (LO06) — there is
+      // no re-prompt. A single leave + re-enter already exercises the
+      // permanent-denial path (no dialog must appear below). backBtn.click()
+      // mirrors LO05's iOS back pattern (driver.back() no-ops on iOS).
+      await driver.$(locationPage.backBtn).click();
+      await driver.pause(1000);
+      await navMenu.open();
+      await navMenu.navigateTo(navMenu.navLocation);
+      await locationPage.waitForDeniedState();
+    }
 
-    // 3rd entry — the dialog must NOT appear (permanent denial).
+    // Final re-entry — the dialog must NOT appear (permanent denial).
     await driver.$(locationPage.backBtn).click();
     await driver.pause(1000);
     await navMenu.open();

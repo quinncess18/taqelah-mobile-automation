@@ -51,9 +51,13 @@ class LocationPage extends BasePage {
       ? 'android=new UiSelector().description("Refresh")'
       : '~Refresh';
 
+    // iOS: the indicator is a StaticText whose name == the visible string
+    // "Tracking location updates..." (LO03 dump, run 26335144122). The old
+    // `~tracking-indicator` was a Key()-based guess and never matched, so
+    // waitForTrackingState() timed out on iOS.
     this.trackingIndicator = this.isAndroid
       ? 'android=new UiSelector().description("Tracking location updates...")'
-      : '~tracking-indicator';
+      : '~Tracking location updates...';
 
     this.locationHistoryHeader = this.isAndroid
       ? 'android=new UiSelector().description("Location History")'
@@ -70,13 +74,18 @@ class LocationPage extends BasePage {
       : '-ios predicate string:name BEGINSWITH "Current Location"';
 
     // ── Denied state ──
+    // iOS denied-state nodes are unharvested (the LO06 dump showed the GRANTED
+    // screen because the TCC grant persisted before the simctl reset landed).
+    // Name-fallback on the visible strings, mirroring the granted-state nodes
+    // (StaticText name == visible text); harvest from the first reset-enabled
+    // denied-path dump if these miss.
     this.permissionDeniedText = this.isAndroid
       ? 'android=new UiSelector().description("Location permission denied")'
-      : '~location-permission-denied';
+      : '~Location permission denied';
 
     this.openSettingsBtn = this.isAndroid
       ? 'android=new UiSelector().description("Open Settings")'
-      : '~open-settings';
+      : '~Open Settings';
 
     // ── OS Permission Dialog (PermissionController) ──
     this.allowWhileUsingBtn = this.isAndroid
@@ -400,6 +409,17 @@ class LocationPage extends BasePage {
   }
 
   /**
+   * iOS variant. Each history entry is an XCUIElementTypeStaticText whose
+   * coord block lives in name= (value= and label= duplicate it verbatim —
+   * LO03 dump, run 26335144122). Match name= ONLY so each entry counts once.
+   * The Current Location card also carries a name=, but it begins with
+   * "Current Location" so the leading-coords pattern never matches it.
+   */
+  static get HISTORY_ENTRY_REGEX_IOS() {
+    return /name="(-?\d+\.\d+, -?\d+\.\d+)&#10;(\d{2}:\d{2}:\d{2})&#10;±(\d+)m"/g;
+  }
+
+  /**
    * Parse history entries from the currently-rendered page source.
    * Returns entries in document order (newest first — LIFO display).
    * Only includes entries currently in the a11y tree (LazyColumn
@@ -409,7 +429,9 @@ class LocationPage extends BasePage {
   async readVisibleHistory() {
     const xml = await this.driver.getPageSource();
     const out = [];
-    const re = LocationPage.HISTORY_ENTRY_REGEX;
+    const re = this.isAndroid
+      ? LocationPage.HISTORY_ENTRY_REGEX
+      : LocationPage.HISTORY_ENTRY_REGEX_IOS;
     re.lastIndex = 0;
     let m;
     while ((m = re.exec(xml)) !== null) {
@@ -494,24 +516,53 @@ class LocationPage extends BasePage {
   }
 
   /**
-   * Reset app data + relaunch so the next entry re-prompts the OS
-   * Location dialog. Same `pm clear` pattern as Camera / Notifications:
-   * the DemoApp tracks "have we asked?" in SharedPreferences, so
-   * `pm reset-permissions` alone leaves the dialog suppressed.
+   * Reset to a cold app + permission state so the next Location entry
+   * re-prompts the OS dialog.
    *
-   * Side effect: wipes login → caller must re-authenticate.
+   * Android — `pm clear` + relaunch. Same pattern as Camera / Notifications:
+   * the DemoApp tracks "have we asked?" in SharedPreferences, so
+   * `pm reset-permissions` alone leaves the dialog suppressed. Side effect:
+   * wipes login → caller must re-authenticate.
+   *
+   * iOS — `noReset` persists the TCC grant across terminate/launch, so the
+   * dialog will NOT re-arm on its own (LO06 dump, run 26335144122: after the
+   * Granted-Path describe grants, the Denied-Path beforeAll lands straight on
+   * the granted-idle screen — no dialog). Reset the location privacy entry to
+   * "not determined" via simctl (the iOS analog of Android's pm clear); the
+   * iOS CI job runs on the same macOS host as the booted simulator, so xcrun
+   * is on PATH. App must be terminated first so the reset takes on relaunch.
+   * iOS keeps login (noReset persists data), so callers conditional-login.
    */
   async resetLocationPermission() {
-    if (!this.isAndroid) return;
-    await this.driver.execute('mobile: shell', {
-      command: 'pm',
-      args: ['clear', this.appPackage],
-    });
-    await this.driver.pause(2500);
-    await this.driver.execute('mobile: shell', {
-      command: 'am',
-      args: ['start', '-W', '-n', `${this.appPackage}/.MainActivity`],
-    });
+    if (this.isAndroid) {
+      await this.driver.execute('mobile: shell', {
+        command: 'pm',
+        args: ['clear', this.appPackage],
+      });
+      await this.driver.pause(2500);
+      await this.driver.execute('mobile: shell', {
+        command: 'am',
+        args: ['start', '-W', '-n', `${this.appPackage}/.MainActivity`],
+      });
+      await this.driver.pause(1500);
+      return;
+    }
+
+    // iOS branch.
+    await this.driver.execute('mobile: terminateApp', { bundleId: this.appPackage });
+    await this.driver.pause(1000);
+    try {
+      require('child_process').execSync(
+        `xcrun simctl privacy booted reset location ${this.appPackage}`,
+        { stdio: 'ignore' },
+      );
+    } catch (err) {
+      // Non-fatal: if simctl is unavailable the dialog simply won't re-arm and
+      // the denied-path bodies fail with a clear assertion instead of a crash.
+      console.warn(`[LocationPage] iOS simctl location reset non-fatal: ${err.message}`);
+    }
+    await this.driver.pause(1000);
+    await this.driver.execute('mobile: launchApp', { bundleId: this.appPackage });
     await this.driver.pause(1500);
   }
 }
