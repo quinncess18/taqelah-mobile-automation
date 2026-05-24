@@ -252,17 +252,14 @@ class GesturesPage extends BasePage {
     // Wait for pan animation to fully settle before sampling pixels
     await this.driver.pause(this.settlePause);
 
-    // iOS cold-first-attempt guard: panCanvas can leak into a page scroll when
-    // the double-tap hasn't fully settled, leaving the canvas at the bottom
-    // fold with pinchArea off-screen. canvasBottom is then derived from an
-    // off-screen pinchArea and the sample lands in dead space near the home
-    // indicator → false (passes only on Playwright retry — run 26352407710
-    // M07 first-attempt flake). Re-assert pinchArea into the comfort viewport
-    // so the sample region tracks the real on-screen canvas. A page scroll
-    // does NOT reset the canvas's InteractiveViewer zoom/pan, so the
-    // double-tap result is preserved.
+    // iOS guard: re-assert pinchArea into the comfort viewport so canvasBottom
+    // (derived from pinchArea.y) tracks the real on-screen canvas. Use the
+    // label-anchored scroll, NOT scrollToSection — in the post-M04 compressed
+    // layout the latter's mid-screen swipe lands on the drag list (see
+    // _iosScrollToPinch). A page scroll does NOT reset the InteractiveViewer
+    // zoom/pan, so the double-tap result is preserved.
     if (this.isIOS) {
-      await this.scrollToSection(this.pinchArea);
+      await this._iosScrollToPinch();
       await this.driver.pause(this.settlePause);
     }
 
@@ -419,9 +416,13 @@ class GesturesPage extends BasePage {
     //   iOS — the Double Tap canvas lands at the bottom fold (label ~93% of
     //     height) with pinchArea off-screen (visible=false, y≈0); without this
     //     scroll tapY collapses to mid-screen and the double-tap misses the
-    //     canvas entirely (run 26331896225 M07 first-attempt flake). Android
-    //     phone keeps the canvas top-fold, so it stays exempt.
-    if (width > 1200 || this.isIOS) {
+    //     canvas entirely (run 26331896225 M07 first-attempt flake). iOS uses
+    //     the label-anchored scroll because scrollToSection's mid-screen swipe
+    //     lands on the drag list in the compressed layout (see _iosScrollToPinch).
+    //     Android phone keeps the canvas top-fold, so it stays exempt.
+    if (this.isIOS) {
+      await this._iosScrollToPinch();
+    } else if (width > 1200) {
       await this.scrollToSection(this.pinchArea);
     }
 
@@ -488,6 +489,49 @@ class GesturesPage extends BasePage {
       }
     ]);
     await this.driver.pause(this.settlePause);
+  }
+
+  /**
+   * iOS-only: bring the Pinch section into the comfort viewport before a double-tap
+   * or pixel sample. After TC-M04 clears the Swipe cards the page compresses and the
+   * nested Drag ReorderableListView floats up to mid-screen — so scrollToSection's
+   * 0.5h swipe lands ON the drag list, which captures the gesture and scrolls its own
+   * short list instead of the page. pinchArea then stays off-screen at (0,0),
+   * doubleTapZoomCanvas collapses tapY to mid-screen, the double-tap misses the canvas
+   * (no zoom), and verifyCanvasHasContent samples dead space → false (run 26353204348
+   * M07 first-attempt flake, passes only on Playwright retry).
+   *
+   * Fix: anchor the scroll swipe on the "Double Tap to Zoom" label — a non-scrollable
+   * Text that always sits BELOW the drag list and ABOVE the InteractiveViewer canvas —
+   * so Flutter's gesture arena routes the drag to the page scrollview, not the list or
+   * the canvas. Modest 0.3h steps keep pinchArea from overshooting past the comfort zone.
+   */
+  async _iosScrollToPinch() {
+    const { width, height } = await this.driver.getWindowRect();
+    const x = Math.round(width / 2);
+    const delta = Math.round(height * 0.3);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (await this.isInsideViewport(this.pinchArea)) return;
+      // Start on the label text row (loc.y..loc.y+height); the canvas is below it.
+      // If the label hasn't been reached yet (fresh layout) fall back to mid-screen.
+      const label = await this.driver.$(this.doubleTapArea);
+      const startY = (await label.isDisplayed())
+        ? (await label.getLocation()).y
+        : Math.round(height * 0.5);
+      const endY = Math.max(Math.round(height * 0.12), startY - delta);
+      await this.driver.performActions([{
+        type: 'pointer', id: 'finger1', parameters: { pointerType: 'touch' },
+        actions: [
+          { type: 'pointerMove', duration: 0, x, y: startY },
+          { type: 'pointerDown', button: 0 },
+          { type: 'pause', duration: 100 },
+          { type: 'pointerMove', duration: 400, x, y: endY },
+          { type: 'pointerUp', button: 0 },
+        ],
+      }]);
+      await this.driver.releaseActions();
+      await this.driver.pause(500);
+    }
   }
 
   /**
