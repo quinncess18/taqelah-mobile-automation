@@ -244,8 +244,10 @@ class GesturesPage extends BasePage {
     await btn.click();
   }
 
-  // Samples a cross-pattern at canvas center after pan and returns true if the hanger is present.
-  // Canvas bounds are computed dynamically from label bottom to Pinch section top.
+  // Returns true if the magnifier icon (dark pixels) is present in the zoom canvas
+  // after the double-tap + pan. Canvas bounds are derived from label bottom to Pinch
+  // section top; sampling is a small center cross on phone, a dense grid on iOS/tablet
+  // (the pan displaces the enlarged icon off-center, so a sparse cross can miss it).
   async verifyCanvasHasContent() {
     const { PNG } = require('pngjs');
 
@@ -291,13 +293,11 @@ class GesturesPage extends BasePage {
 
     let minBrightness = 255;
     if (this.isIOS) {
-      // iOS: the NW pan displaces the zoomed icon off a small center cross, and
-      // the cold-attempt scroll variance means the icon can land anywhere in
-      // the canvas. Scan a dense grid across the FULL content width (the label
-      // is narrow text; the canvas spans nearly the whole width), so the dark
-      // magnifier icon is caught wherever the pan placed it. The scroll guard
-      // above keeps canvasTop..canvasBottom on-screen, so every sample is in
-      // PNG bounds.
+      // iOS: the NW pan displaces the enlarged icon up-left, off a small center
+      // cross. Scan a dense grid across the FULL content width (the label is
+      // narrow text; the canvas spans nearly the whole width), so the dark
+      // magnifier icon is caught wherever the pan placed it. _iosScrollToPinch
+      // above keeps canvasTop..canvasBottom on-screen, so every sample is in PNG bounds.
       const scanLeft = 16;
       const scanRight = screenWidth - 16;
       for (let y = canvasTop + 10; y < canvasBottom - 10; y += 20) {
