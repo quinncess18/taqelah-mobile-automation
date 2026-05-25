@@ -41,9 +41,15 @@ class BasePage {
     // App-global "added to cart" snackbar — fires from Product Detail's
     // Add to Cart button AND from a grid card's direct-add icon. Owned at
     // BasePage so any POM can wait on it without cross-POM reaching.
+    // iOS: the Flutter Key 'added-snackbar' does NOT reach accessibilityIdentifier,
+    // so match the snackbar's text element by name (the overlay renders "<Product>
+    // added to cart"). name-CONTAINS is type-agnostic so it catches the text whether
+    // it surfaces as StaticText or the XCUIElementTypeOther overlay; getAddedSnackbarText
+    // then reads its `label`. First-iteration selector — refine against the §4 iOS
+    // diagnostic XML if the matched element's label isn't the exact text.
     this.addedSnackbar = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("added to cart")'
-      : '~added-snackbar';
+      : '-ios predicate string:name CONTAINS "added to cart"';
   }
 
   /**

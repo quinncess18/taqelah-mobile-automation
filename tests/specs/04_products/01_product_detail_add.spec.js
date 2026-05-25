@@ -53,17 +53,29 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
 
   // ─── Universal reset + relogin + portrait lock (tablet) ───
   async function fullResetAndLogin(driver) {
-    // pm clear wipes everything — login, cart, permissions, prefs.
-    await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
-    await driver.pause(2500);
-    await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
-    await driver.pause(1500);
+    if (loginPage.isAndroid) {
+      // pm clear wipes everything — login, cart, permissions, prefs.
+      await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
+      await driver.pause(2500);
+      await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
+      await driver.pause(1500);
+    } else {
+      // iOS has no `pm clear` — terminate + relaunch via XCUITest. noReset
+      // persists the session, so the app may return already logged in; the
+      // conditional login below handles both cold-Login and warm-Landing.
+      await driver.execute('mobile: terminateApp', { bundleId: loginPage.appPackage });
+      await driver.pause(1500);
+      await driver.execute('mobile: launchApp', { bundleId: loginPage.appPackage });
+      await driver.pause(1500);
+    }
 
     // Re-apply the same Flutter-bridge tuning beforeAll did.
     try { await driver.updateSettings({ waitForIdleTimeout: 0 }); } catch {}
 
-    await loginPage.waitForPageLoad();
-    await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
+    if (await loginPage.isVisible(loginPage.loginButton)) {
+      await loginPage.waitForPageLoad();
+      await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
+    }
     await landingPage.waitForPageLoad();
 
     const { width } = await driver.getWindowRect();
@@ -122,13 +134,13 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     await detailPage.selectColorByInstance(1);
     variantSnack2 = await detailPage.addToCart();
     await detailPage.waitForSnackbarDismissed();
-    await driver.back();
+    await landingPage.deviceBack();
     await gridPage.waitForPageLoad();
     const gridCartBtn = await driver.$(gridPage.cartBtn);
     await gridCartBtn.click();
     await cartPage.waitForPageLoad();
     variantCartLineCount = await cartPage.getLineCount();
-    await driver.back();
+    await landingPage.deviceBack();
     await gridPage.waitForPageLoad();
   }
 
@@ -151,13 +163,13 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     await detailPage.waitForPageLoad();
     const snack = await detailPage.addToCart();
     await detailPage.waitForSnackbarDismissed();
-    await driver.back();
+    await landingPage.deviceBack();
     await gridPage.waitForPageLoad();
     return snack;
   }
 
   async function actionsPD05(driver) {
-    await driver.back();
+    await landingPage.deviceBack();
     await landingPage.waitForPageLoad();
     await landingPage.selectCategory('Evening');
     await gridPage.waitForPageLoad();
@@ -174,13 +186,13 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
   }
 
   async function actionsSR01(driver) {
-    await driver.back();
+    await landingPage.deviceBack();
     await landingPage.waitForPageLoad();
     await landingPage.selectCategory('Party');
     await gridPage.waitForPageLoad();
     await gridPage.searchProducts('Cocktail');
 
-    const counterText = await (await driver.$(gridPage.resultCount)).getAttribute('content-desc');
+    const counterText = await (await driver.$(gridPage.resultCount)).getAttribute(gridPage.attrName);
     const counterMatch = counterText.match(/Showing\s+(\d+)\s+of\s+\d+\s+items/);
     cocktailExpected = counterMatch ? parseInt(counterMatch[1], 10) : 3;
 
@@ -210,7 +222,7 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
   }
 
   async function actionsSR02(driver) {
-    await driver.back();
+    await landingPage.deviceBack();
     await landingPage.waitForPageLoad();
     await landingPage.selectCategory('Boho');
     await gridPage.waitForPageLoad();
@@ -256,7 +268,7 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     for (let i = 0; i < 3; i++) {
       if (await loginPage.isVisible(loginPage.loginButton)) break;
       if (await landingPage.isVisible(landingPage.shopAllBtn)) break;
-      await driver.back();
+      await landingPage.deviceBack();
       await driver.pause(500);
     }
 
