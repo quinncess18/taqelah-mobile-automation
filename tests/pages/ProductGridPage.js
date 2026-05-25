@@ -270,7 +270,28 @@ class ProductGridPage extends BasePage {
    * children). This helper filters those out so the caller can tap the
    * returned `addBtn` without scroll choreography.
    */
+  // iOS: the per-card direct-add button is a nameless Button *sibling* of the
+  // card Image (on Android it's a child). Anchor on the card Image by its name
+  // prefix and take the following-sibling Button. Confirmed in the §4 grid XML.
+  _iosCardAddBtn(name) {
+    const safe = name.replace(/"/g, '');
+    return `//XCUIElementTypeImage[starts-with(@name, "${safe}")]/following-sibling::XCUIElementTypeButton[1]`;
+  }
+
   async pickRandomProductDirectAdd() {
+    if (this.isIOS) {
+      const cards = await this.driver.$$(this.clickableItems);
+      const descs = [];
+      for (const c of cards) {
+        if (!(await c.isDisplayed().catch(() => false))) continue; // skip ghost cards
+        const desc = await c.getAttribute(this.attrName);
+        if (desc && desc.includes('$')) descs.push(desc);
+      }
+      if (descs.length === 0) throw new Error('No visible product cards with add button found');
+      const [name, price] = descs[Math.floor(Math.random() * descs.length)].split('\n');
+      const addBtn = await this.driver.$(this._iosCardAddBtn(name));
+      return { addBtn, name, price };
+    }
     const cards = await this.driver.$$(this.clickableItems);
     const candidates = [];
     for (const c of cards) {
@@ -297,8 +318,14 @@ class ProductGridPage extends BasePage {
     for (const c of cards) {
       const desc = await c.getAttribute(this.attrName);
       if (!desc || !desc.includes('$')) continue;
-      const btn = await c.$('android=new UiSelector().className("android.widget.Button")');
-      if (!(await btn.isDisplayed().catch(() => false))) continue;
+      if (this.isIOS) {
+        // Every on-screen iOS card renders its add-button sibling; gate on the
+        // card being displayed (skip ghosts) rather than a child-button probe.
+        if (!(await c.isDisplayed().catch(() => false))) continue;
+      } else {
+        const btn = await c.$('android=new UiSelector().className("android.widget.Button")');
+        if (!(await btn.isDisplayed().catch(() => false))) continue;
+      }
       names.push(desc.split('\n')[0]);
     }
     return names;
@@ -309,10 +336,13 @@ class ProductGridPage extends BasePage {
    * Resolves the card fresh each call so it survives grid re-renders.
    */
   async tapDirectAddByName(name) {
+    if (this.isIOS) {
+      const addBtn = await this.driver.$(this._iosCardAddBtn(name));
+      await addBtn.click();
+      return;
+    }
     const escaped = name.replace(/"/g, '\\"');
-    const cardSelector = this.isAndroid
-      ? `android=new UiSelector().className("android.widget.ImageView").descriptionContains("${escaped}")`
-      : `~card-${name}`;
+    const cardSelector = `android=new UiSelector().className("android.widget.ImageView").descriptionContains("${escaped}")`;
     const card = await this.driver.$(cardSelector);
     const addBtn = await card.$('android=new UiSelector().className("android.widget.Button")');
     await addBtn.click();

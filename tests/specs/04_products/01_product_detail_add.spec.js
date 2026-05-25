@@ -32,6 +32,23 @@ const { NavMenuPage } = require('../../pages/NavMenuPage');
 
 const TC_SEQUENCE = ['PD01', 'PD02', 'PD03', 'PD04', 'PD05', 'PD06', 'SR01', 'SR02'];
 
+// iOS: a location permission system alert can leak in from the preceding
+// Location / Dark Mode specs (the app re-prompts on foreground while permission
+// is undetermined). It overlays the catalog and silently swallows the Shop All
+// tap, so the grid never loads. Products never needs location → deny any pending
+// alert. No-op on Android and when no alert is present.
+async function dismissIosSystemAlert(driver) {
+  if (!driver.isIOS) return;
+  try {
+    const btns = await driver.execute('mobile: alert', { action: 'getButtons' });
+    if (btns && btns.length) {
+      const deny = btns.find((b) => /Don.t Allow/.test(b)) || btns[btns.length - 1];
+      await driver.execute('mobile: alert', { action: 'accept', buttonLabel: deny });
+      await driver.pause(800);
+    }
+  } catch { /* no alert present */ }
+}
+
 test.describe('Products Module — Product Detail + Add to Cart', () => {
   /** @type {LoginPage} */ let loginPage;
   /** @type {CatalogLandingPage} */ let landingPage;
@@ -71,6 +88,9 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
 
     // Re-apply the same Flutter-bridge tuning beforeAll did.
     try { await driver.updateSettings({ waitForIdleTimeout: 0 }); } catch {}
+
+    // Relaunch can re-surface the leftover iOS location alert — clear it.
+    await dismissIosSystemAlert(driver);
 
     if (await loginPage.isVisible(loginPage.loginButton)) {
       await loginPage.waitForPageLoad();
@@ -259,6 +279,9 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     detailPage = new ProductDetailPage(driver);
     cartPage = new CartPage(driver);
     navMenu = new NavMenuPage(driver);
+
+    // Clear any leftover iOS location alert before navigating (see helper).
+    await dismissIosSystemAlert(driver);
 
     // Reach a known anchor (login OR landing) via device-back ×3. Handles
     // the case where a prior spec left the app parked on a deeper screen
