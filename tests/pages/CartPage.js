@@ -198,12 +198,11 @@ class CartPage extends BasePage {
   }
 
   /**
-   * Stitch two ordered snapshots into a single contiguous list.
-   * Finds the longest k where A's last-k descs equal B's first-k descs,
-   * then appends the unique tail of B. Safe with duplicate variant lines
-   * because the overlap is matched in-order, not as a set.
+   * Longest k where A's last-k descs equal B's first-k descs (in order).
+   * Used to append only B's genuinely-new tail. Matched in-order, not as a
+   * set, so duplicate variant lines stitch correctly.
    */
-  _stitch(A, B) {
+  _overlapK(A, B) {
     let k = Math.min(A.length, B.length);
     while (k > 0) {
       let match = true;
@@ -213,7 +212,20 @@ class CartPage extends BasePage {
       if (match) break;
       k--;
     }
-    return [...A, ...B.slice(k)];
+    return k;
+  }
+
+  /** True if A and B hold the same multiset of line descs (order-agnostic). */
+  _sameMultiset(A, B) {
+    if (A.length !== B.length) return false;
+    const count = new Map();
+    for (const x of A) count.set(x.raw, (count.get(x.raw) || 0) + 1);
+    for (const x of B) {
+      const c = count.get(x.raw);
+      if (!c) return false;
+      count.set(x.raw, c - 1);
+    }
+    return true;
   }
 
   /**
@@ -223,15 +235,25 @@ class CartPage extends BasePage {
    */
   async collectAllLines() {
     let collected = await this._readVisibleSnapshot();
+    let prevVisible = collected;
 
-    // Walk down in half-viewport steps until the snapshot stops growing.
+    // Walk down in half-viewport steps, appending each snapshot's new tail.
     // Cap at 4 passes — even a long cart fits in 4 viewport-halves.
     for (let pass = 0; pass < 4; pass++) {
-      const before = collected.length;
       await this._swipeCart(1800, 800);
       const snap = await this._readVisibleSnapshot();
-      collected = this._stitch(collected, snap);
-      if (collected.length === before) break;
+      if (snap.length === 0) break;
+      // No-progress guard: if the swipe surfaced the SAME multiset of lines
+      // (cart fits one viewport, or we're already at the bottom), it didn't
+      // scroll. Under CI render-lag Compose can hand back that same window
+      // *reordered*, and an in-order stitch then fails to find the overlap and
+      // re-appends the whole cart — the exact 2× Σ doubling that hard-failed
+      // TC-S03 on run 26389835383. Stop before stitching; never append a
+      // snapshot that revealed nothing genuinely new.
+      if (this._sameMultiset(prevVisible, snap)) break;
+      const k = this._overlapK(collected, snap);
+      collected = [...collected, ...snap.slice(k)];
+      prevVisible = snap;
     }
     // Single fluid fling back to top so subsequent S* tests operate on
     // line 0 from a known viewport position.
