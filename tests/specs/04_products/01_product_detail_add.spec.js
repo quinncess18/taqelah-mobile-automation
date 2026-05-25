@@ -1,6 +1,4 @@
 // @ts-check
-const fs = require('fs');
-const path = require('path');
 const { test, expect } = require('../../../fixtures/appFixture');
 const { LoginPage } = require('../../pages/LoginPage');
 const { CatalogLandingPage } = require('../../pages/CatalogLandingPage');
@@ -174,27 +172,20 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     variantSnack1 = await detailPage.addToCart();
     await detailPage.waitForSnackbarDismissed();
     await detailPage.selectColorByInstance(1);
-    // [PD02-diag] iOS-only swatch instrumentation (temporary — remove once the
-    // 2-swatches→2-lines merge is fixed). The failure dump only ever captures the
-    // grid, never the detail page where the swatch tap lands, so we cannot tell
-    // whether colorSwatch(1) resolves to a real, distinct swatch. Dump the swatch
-    // geometry + selected-state and the live detail tree, gated to iOS+CI.
+    // [PD02-diag] iOS+CI confirmation log (temporary — remove once PD02 is green).
+    // Root cause was the add-to-cart snackbar covering the swatch row (swatches
+    // visible=false → tap swallowed → variant unchanged → 2 adds merge to 1 line,
+    // run 26400812414 detail XML). selectColorByInstance now dismisses the snackbar
+    // first; this logs each swatch's visible/loc so the next run confirms swatch 1
+    // was hittable (visible=true) at tap time.
     if (process.env.CI && detailPage.isIOS) {
       try {
         for (let i = 0; i < 3; i++) {
           const el = await driver.$(detailPage.colorSwatch(i));
           const loc = await el.getLocation().catch(() => null);
-          const size = await el.getSize().catch(() => null);
-          const val = await el.getAttribute('value').catch(() => null);
-          const sel = await el.getAttribute('selected').catch(() => null);
-          console.log(`[PD02-diag] swatch[${i}] loc=${JSON.stringify(loc)} size=${JSON.stringify(size)} value=${val} selected=${sel}`);
+          const vis = await el.getAttribute('visible').catch(() => null);
+          console.log(`[PD02-diag] swatch[${i}] visible=${vis} loc=${JSON.stringify(loc)}`);
         }
-        const dir = path.resolve(process.cwd(), 'test-results', 'diagnostics');
-        fs.mkdirSync(dir, { recursive: true });
-        const src = await driver.getPageSource();
-        const p = path.join(dir, 'ios-PD02-detail-after-select1-source.xml');
-        fs.writeFileSync(p, src, 'utf8');
-        console.log(`[PD02-diag] wrote detail tree (after select swatch 1) ${p} (${src.length} bytes)`);
       } catch (err) {
         console.warn(`[PD02-diag] instrumentation failed: ${err.message}`);
       }

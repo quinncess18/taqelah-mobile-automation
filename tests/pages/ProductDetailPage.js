@@ -67,22 +67,36 @@ class ProductDetailPage extends BasePage {
   /**
    * Tap one of the 3 color swatches by instance order (0-indexed).
    *
-   * iOS: the add-to-cart snackbar overlay (a full-width XCUIElementTypeOther at
-   * y≈707-770) sits directly on top of the swatch row (y≈725-761). Tapping a
-   * swatch while it's up is swallowed by the overlay, so the color never changes
+   * iOS: the add-to-cart snackbar — an actionable one with a VIEW CART button —
+   * renders at y≈687-770, directly over the swatch row (swatches at y=725), and
+   * its duration outlives the fixed dismiss pause. While it's up the swatch
+   * reports visible=false and the tap is swallowed, so the color never changes
    * and the two variant adds merge into a single cart line — PD02 fails 2≠1 (run
-   * 26385399623, confirmed via snackbar+cart diagnostic XML). The fixed snackbar
-   * pause has too thin a margin on the slow sim, so explicitly wait the snackbar
-   * out (reverse-displayed) before selecting. No-op on the first select (none up).
+   * 26400812414, confirmed via the detail-tree diagnostic XML: snackbar visible,
+   * all three swatches visible=false underneath). Waiting it out (reverse-wait /
+   * fixed pause) proved unreliable, so actively swipe the snackbar down to dismiss
+   * it (Material SnackBar default DismissDirection.down) and then gate the tap on
+   * the swatch becoming hittable again — duration-agnostic. No-op on the first
+   * select (no snackbar up, swatch already displayed).
    */
   async selectColorByInstance(instance) {
+    const el = await this.driver.$(this.colorSwatch(instance));
     if (this.isIOS) {
       try {
         const sb = await this.driver.$(this.addedSnackbar);
-        await sb.waitForDisplayed({ timeout: 5000, reverse: true });
-      } catch { /* no snackbar present */ }
+        if (await sb.isDisplayed()) {
+          // Swipe at 25% width: left of the VIEW CART button (x≈259-370) so we
+          // dismiss the snackbar rather than tap its action. y 725→815 stays
+          // clear of the home indicator (~835).
+          const { width } = await this.driver.getWindowRect();
+          const x = Math.round(width * 0.25);
+          await this.swipe(x, 725, x, 815, 400);
+        }
+      } catch { /* no snackbar up */ }
+      // Whether or not the swipe landed, wait for the swatch to be hittable
+      // (it auto-uncovers when the snackbar finally clears).
+      try { await el.waitForDisplayed({ timeout: 8000 }); } catch { /* tap anyway */ }
     }
-    const el = await this.driver.$(this.colorSwatch(instance));
     await el.click();
     await this.driver.pause(300);
   }
