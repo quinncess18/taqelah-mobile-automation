@@ -92,8 +92,18 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     // Relaunch can re-surface the leftover iOS location alert — clear it.
     await dismissIosSystemAlert(driver);
 
-    if (await loginPage.isVisible(loginPage.loginButton)) {
-      await loginPage.waitForPageLoad();
+    // WAIT for the login button rather than single-shot isVisible: after a pm
+    // clear cold relaunch Flutter takes hundreds of ms to draw it, so a
+    // single-shot check can race false and SKIP login → app stuck on Login →
+    // landing never appears (Android cold-render race, same class as the LO01
+    // fix). On iOS's persisted session it times out → skip login (already authed).
+    let needsLogin = true;
+    try {
+      await loginPage.waitForDisplayed(loginPage.loginButton, 15000);
+    } catch {
+      needsLogin = false;
+    }
+    if (needsLogin) {
       await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
     }
     await landingPage.waitForPageLoad();

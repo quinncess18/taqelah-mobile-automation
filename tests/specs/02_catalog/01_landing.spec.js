@@ -46,11 +46,19 @@ test.describe('Catalog Module - Landing UI Master Check', () => {
       await driver.pause(1500);
     }
 
-    // Log in only if the Login screen is actually present. Android `pm clear`
-    // always lands here; iOS may already be on Landing via a persisted session
-    // (mirrors the self-healing gate in 02_categories.spec.js).
-    if (await loginPage.isVisible(loginPage.loginButton)) {
-      await loginPage.waitForPageLoad();
+    // Log in only if the Login screen is present. WAIT for the login button
+    // rather than single-shot isVisible: after a pm clear cold relaunch Flutter
+    // takes hundreds of ms to draw it, so a single-shot check can race false and
+    // SKIP login → app stuck on Login → landing never appears (Android cold-render
+    // race, same class as the LO01 fix). waitForDisplayed absorbs the lag; on
+    // iOS's persisted session it times out → skip login (already authenticated).
+    let needsLogin = true;
+    try {
+      await loginPage.waitForDisplayed(loginPage.loginButton, 15000);
+    } catch {
+      needsLogin = false;
+    }
+    if (needsLogin) {
       await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
     }
     await landingPage.waitForPageLoad();

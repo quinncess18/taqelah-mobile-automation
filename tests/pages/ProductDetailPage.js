@@ -66,8 +66,22 @@ class ProductDetailPage extends BasePage {
 
   /**
    * Tap one of the 3 color swatches by instance order (0-indexed).
+   *
+   * iOS: the add-to-cart snackbar overlay (a full-width XCUIElementTypeOther at
+   * y≈707-770) sits directly on top of the swatch row (y≈725-761). Tapping a
+   * swatch while it's up is swallowed by the overlay, so the color never changes
+   * and the two variant adds merge into a single cart line — PD02 fails 2≠1 (run
+   * 26385399623, confirmed via snackbar+cart diagnostic XML). The fixed snackbar
+   * pause has too thin a margin on the slow sim, so explicitly wait the snackbar
+   * out (reverse-displayed) before selecting. No-op on the first select (none up).
    */
   async selectColorByInstance(instance) {
+    if (this.isIOS) {
+      try {
+        const sb = await this.driver.$(this.addedSnackbar);
+        await sb.waitForDisplayed({ timeout: 5000, reverse: true });
+      } catch { /* no snackbar present */ }
+    }
     const el = await this.driver.$(this.colorSwatch(instance));
     await el.click();
     await this.driver.pause(300);

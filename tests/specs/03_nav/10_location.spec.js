@@ -53,10 +53,19 @@ async function gotoLocationFresh(driver) {
   //     mirrors catalog's fullResetAndLogin.
   await locationPage.resetLocationPermission();
 
-  // Log in only if the Login screen is actually present (Android pm clear
-  // always lands here; iOS may resume an authenticated session).
-  if (await loginPage.isVisible(loginPage.loginButton)) {
+  // Log in only if the Login screen is present. WAIT for the login button
+  // rather than single-shot isVisible: after a pm clear cold relaunch Flutter
+  // takes hundreds of ms to draw it, so the single-shot check raced false and
+  // SKIPPED login → app stuck on Login (empty fields) → "Shop All not displayed"
+  // (Android LO01, run 26382002109). waitForDisplayed absorbs the cold-render
+  // lag; on iOS's persisted session it times out → skip login (already authed).
+  let needsLogin = true;
+  try {
     await loginPage.waitForDisplayed(loginPage.loginButton, 15000);
+  } catch {
+    needsLogin = false;
+  }
+  if (needsLogin) {
     await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
   }
   await landingPage.waitForDisplayed(landingPage.shopAllBtn, 15000);
