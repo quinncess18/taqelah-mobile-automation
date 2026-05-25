@@ -170,33 +170,22 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     await detailPage.waitForPageLoad();
     await detailPage.selectColorByInstance(0);
     variantSnack1 = await detailPage.addToCart();
-    // [PD02-life] iOS+CI: characterize the add-to-cart snackbar lifetime + when
-    // (if ever) the covered swatch uncovers, so we know whether "wait it out" is
-    // even viable vs. needing active dismissal. Temporary.
-    if (process.env.CI && detailPage.isIOS) {
-      const t0 = Date.now();
-      for (let i = 0; i < 12; i++) {
-        const sb = await driver.$(detailPage.addedSnackbar).isDisplayed().catch(() => null);
-        const sw = await driver.$(detailPage.colorSwatch(1)).getAttribute('visible').catch(() => null);
-        console.log(`[PD02-life] t=${Date.now() - t0}ms snackbar=${sb} swatch1.visible=${sw}`);
-        await driver.pause(1500);
-      }
-    }
     await detailPage.waitForSnackbarDismissed();
     await detailPage.selectColorByInstance(1);
     // [PD02-diag] iOS+CI confirmation log (temporary — remove once PD02 is green).
-    // Root cause was the add-to-cart snackbar covering the swatch row (swatches
-    // visible=false → tap swallowed → variant unchanged → 2 adds merge to 1 line,
-    // run 26400812414 detail XML). selectColorByInstance now dismisses the snackbar
-    // first; this logs each swatch's visible/loc so the next run confirms swatch 1
-    // was hittable (visible=true) at tap time.
+    // Root cause: the fixed bottom snackbar (y707-770) overlapped the swatch
+    // CENTRE (y720) → .click() swallowed → variant unchanged → 2 adds merge to 1
+    // line (run 26405633023 detail XML). selectColorByInstance now scrolls the
+    // swatch CENTRE clear of the snackbar top before tapping; this logs each
+    // swatch's centre y so the next run confirms swatch 1 was above ~707 at tap.
     if (process.env.CI && detailPage.isIOS) {
       try {
         for (let i = 0; i < 3; i++) {
           const el = await driver.$(detailPage.colorSwatch(i));
           const loc = await el.getLocation().catch(() => null);
-          const vis = await el.getAttribute('visible').catch(() => null);
-          console.log(`[PD02-diag] swatch[${i}] visible=${vis} loc=${JSON.stringify(loc)}`);
+          const size = await el.getSize().catch(() => null);
+          const centerY = loc && size ? loc.y + size.height / 2 : null;
+          console.log(`[PD02-diag] swatch[${i}] centerY=${centerY} loc=${JSON.stringify(loc)}`);
         }
         const sbVis = await driver.$(detailPage.addedSnackbar).isDisplayed().catch(() => null);
         console.log(`[PD02-diag] snackbar.isDisplayed=${sbVis} (after scroll + select swatch 1)`);

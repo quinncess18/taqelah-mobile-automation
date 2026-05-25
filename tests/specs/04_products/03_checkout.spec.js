@@ -174,6 +174,24 @@ test.describe('Products Module — Checkout (§15)', () => {
   // ─── seed-cart helpers (used by beforeAll + its recovery path) ───
 
   /**
+   * Re-find a grid card by its product name. A card's element handle goes
+   * stale after a swallowed tap that left us on the grid, so the seed re-tap
+   * loop calls this to get a fresh handle before retrying. Returns the element
+   * or null if the card isn't currently on the grid.
+   */
+  async function reResolveCard(driver, name) {
+    const cards = await driver.$$(gridPage.clickableItems);
+    for (const c of cards) {
+      const desc = await c.getAttribute(gridPage.attrName).catch(() => null);
+      if (!desc || desc.split('\n')[0] !== name) continue;
+      // iOS exposes off-screen cards as ghost nodes at (0,0); skip the unhittable ones.
+      if (gridPage.isIOS && !(await c.isDisplayed().catch(() => false))) continue;
+      return c;
+    }
+    return null;
+  }
+
+  /**
    * Add N DISTINCT random items via the Detail-page add path (PD04 pattern).
    * Assumes we're already on a grid screen with items visible. The grid-card
    * direct-add icon was vulnerable to Material snackbar overlay collisions
@@ -208,13 +226,29 @@ test.describe('Products Module — Checkout (§15)', () => {
         }
       }
 
-      await pick.el.click();
-      try {
-        await detailPage.waitForPageLoad();
-      } catch (err) {
-        console.log(`[CK-seed/diag] waitForPageLoad failed after tap on "${pick.name}": ${err?.message || err}`);
-        await dumpK01SeedDiagnostic(driver, `wait-fail-i${i + 1}`, pick.name);
-        throw err;
+      // Cold-render race (CI run 26405633023): the card tap is silently
+      // swallowed and Detail never binds, so a single 60s waitForPageLoad just
+      // burns the clock and throws — all 3 retries hit the same wall. A
+      // swallowed tap leaves us on the grid, so re-tap up to 3×, re-resolving
+      // the (now-stale) card handle by name between attempts.
+      let detailBound = false;
+      for (let tap = 1; tap <= 3 && !detailBound; tap++) {
+        if (tap > 1) {
+          try { await gridPage.waitForPageLoad(); } catch { /* re-tap anyway */ }
+          const re = await reResolveCard(driver, pick.name);
+          if (re) pick.el = re;
+        }
+        await pick.el.click();
+        try {
+          await detailPage.waitForDisplayed(detailPage.addToCartBtn, tap === 1 ? 30000 : 20000);
+          detailBound = true;
+        } catch (err) {
+          console.log(`[CK-seed/diag] Detail didn't bind after tap on "${pick.name}" (attempt ${tap}/3): ${err?.message || err}`);
+          if (tap === 3) {
+            await dumpK01SeedDiagnostic(driver, `wait-fail-i${i + 1}`, pick.name);
+            throw err;
+          }
+        }
       }
       console.log(`[CK-seed] add ${i + 1}/${itemCount}: Detail ready, tapping Add to Cart`);
       await detailPage.addToCart();

@@ -68,37 +68,48 @@ class ProductDetailPage extends BasePage {
    * Tap one of the 3 color swatches by instance order (0-indexed).
    *
    * iOS: the add-to-cart snackbar — an actionable one with a VIEW CART button —
-   * renders at y≈687-770, directly over the swatch row (swatches at y=725), and
-   * its duration outlives the fixed dismiss pause. While it's up the swatch
-   * reports visible=false and the tap is swallowed, so the color never changes
-   * and the two variant adds merge into a single cart line — PD02 fails 2≠1 (run
-   * 26400812414, confirmed via the detail-tree diagnostic XML: snackbar visible,
-   * all three swatches visible=false underneath). Waiting it out (reverse-wait /
-   * fixed pause) proved unreliable, so actively swipe the snackbar down to dismiss
-   * it (Material SnackBar default DismissDirection.down) and then gate the tap on
-   * the swatch becoming hittable again — duration-agnostic. No-op on the first
-   * select (no snackbar up, swatch already displayed).
+   * is a FIXED bottom overlay at y≈707-770 that outlives any reasonable wait
+   * (still displayed at 19s, run 26405633023) and won't swipe-dismiss. The
+   * swatch row sits at y≈702 (h=36), so its CENTRE (≈720) lands INSIDE the
+   * snackbar band — and `.click()` taps the element centre, so the overlay
+   * swallows it, the colour never changes, and the two variant adds merge into a
+   * single cart line (PD02 fails 2≠1, confirmed in the detail-tree diagnostic
+   * XML: swatches at y=702, snackbar at y=707-770, Add to Cart at y=780).
+   * A single scroll under-lifted the row (it stopped at 702, still in-band), so
+   * scroll the content up in a loop until the swatch CENTRE clears the snackbar
+   * TOP — re-reading both rects each pass (geometry-driven, duration-agnostic).
+   * No-op on the first select (no snackbar up, swatch already clear).
    */
   async selectColorByInstance(instance) {
-    const el = await this.driver.$(this.colorSwatch(instance));
+    let el = await this.driver.$(this.colorSwatch(instance));
     if (this.isIOS) {
       try {
         const sb = await this.driver.$(this.addedSnackbar);
         if (await sb.isDisplayed()) {
-          // The actionable add-to-cart snackbar (VIEW CART) is a long-lived
-          // FIXED bottom overlay at y≈687-770; it doesn't reliably swipe-dismiss
-          // (run 26402569742: swatch stayed visible=false after a down-swipe).
-          // But the swatches live in the SCROLLABLE detail content, so scroll the
-          // content up to lift the swatch row clear of the snackbar band, then
-          // tap. Start the drag above the snackbar (y=650) so it scrolls content,
-          // not the overlay.
           const { width } = await this.driver.getWindowRect();
           const x = Math.round(width / 2);
-          await this.swipe(x, 650, x, 330, 600);
+          let prevCenter = null;
+          for (let pass = 0; pass < 5; pass++) {
+            // Re-resolve both rects each pass — the swatch moves with the scroll;
+            // the snackbar stays pinned to the bottom.
+            const sbEl = await this.driver.$(this.addedSnackbar);
+            const sbTop = (await sbEl.getLocation().catch(() => null))?.y ?? 707;
+            el = await this.driver.$(this.colorSwatch(instance));
+            const loc = await el.getLocation().catch(() => null);
+            const size = await el.getSize().catch(() => null);
+            const centerY = loc && size ? loc.y + size.height / 2 : null;
+            // Clear once the swatch centre is comfortably above the snackbar.
+            if (centerY !== null && centerY < sbTop - 20) break;
+            // Stop if scrolling no longer moves the row (hit the scroll limit).
+            if (centerY !== null && prevCenter !== null && Math.abs(centerY - prevCenter) < 4) break;
+            prevCenter = centerY;
+            // Drag from above the snackbar (y=640) so it scrolls content, not the overlay.
+            await this.swipe(x, 640, x, 300, 500);
+            await this.driver.pause(400);
+          }
         }
       } catch { /* no snackbar up */ }
-      // Wait for the swatch to be hittable (uncovered by the scroll, or after the
-      // snackbar finally clears) before tapping.
+      el = await this.driver.$(this.colorSwatch(instance));
       try { await el.waitForDisplayed({ timeout: 8000 }); } catch { /* tap anyway */ }
     }
     await el.click();
