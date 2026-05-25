@@ -41,9 +41,13 @@ class ProductGridPage extends BasePage {
     // when items > 0; node is absent when cart is empty. The only numeric-only
     // content-desc on the Shop All / Category grids is the badge, so the regex
     // resolves it uniquely. Verified against `dumps/shop_all_with_badge.xml`.
+    // iOS: the badge is a StaticText whose name is the count, overlaying the cart
+    // icon at the app-bar's top-right; it's the only numeric-only StaticText on a
+    // grid (Flutter Key 'cart-badge' doesn't reach accessibilityIdentifier;
+    // confirmed in the §4 grid diagnostic XML). Absent when the cart is empty.
     this.cartBadge = this.isAndroid
       ? 'android=new UiSelector().className("android.view.View").descriptionMatches("^[0-9]+$")'
-      : '~cart-badge';
+      : '-ios predicate string:type == "XCUIElementTypeStaticText" AND name MATCHES "^[0-9]+$"';
     
     // Search & Metadata
     this.searchInput = this.isAndroid

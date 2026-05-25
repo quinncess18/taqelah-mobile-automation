@@ -46,10 +46,14 @@ class CartPage extends BasePage {
       : '~Continue Shopping';
 
     // Line items: ImageView with content-desc containing `$` (the total label
-    // is a View, not an ImageView, so this isolates lines cleanly).
+    // is a View, not an ImageView, so this isolates lines cleanly). iOS mirrors
+    // this: each line is an XCUIElementTypeImage named "<product>\n$<total>\n<qty>"
+    // (Flutter Key 'cart-line-item' doesn't reach accessibilityIdentifier;
+    // confirmed in the §4 cart diagnostic XML). Line totals live in the Images;
+    // the page Total is a StaticText, so the Image+"$" filter isolates lines.
     this.lineItem = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.ImageView").descriptionContains("$")'
-      : '~cart-line-item';
+      : '-ios predicate string:type == "XCUIElementTypeImage" AND name CONTAINS "$"';
 
     // Bottom bar
     this.totalLabel = this.isAndroid
@@ -61,9 +65,11 @@ class CartPage extends BasePage {
     // resolves uniquely. (descriptionMatches with regex anchors flaked under
     // the UiSelector → Java regex bridge — startsWith avoids the escape
     // hazard entirely.)
+    // iOS: the page Total is the only StaticText beginning with "$" (line totals
+    // surface inside Images, not StaticTexts); confirmed in the cart XML.
     this.totalValue = this.isAndroid
       ? 'android=new UiSelector().className("android.view.View").descriptionStartsWith("$")'
-      : '~cart-total-value';
+      : '-ios predicate string:type == "XCUIElementTypeStaticText" AND name BEGINSWITH "$"';
 
     this.proceedToCheckoutBtn = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.Button").description("Proceed to Checkout")'

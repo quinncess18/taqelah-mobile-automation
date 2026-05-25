@@ -32,22 +32,6 @@ const { NavMenuPage } = require('../../pages/NavMenuPage');
 
 const TC_SEQUENCE = ['PD01', 'PD02', 'PD03', 'PD04', 'PD05', 'PD06', 'SR01', 'SR02'];
 
-// iter-2 TEMP (iOS bring-up harvest): dump the live a11y tree at a named
-// checkpoint so the cart/snackbar selectors — currently dead Flutter Keys with
-// no usable failure dump (the action returns to the grid before the body
-// assert) — can be resolved from the real tree. iOS+CI gated; remove once §4
-// iOS selectors are verified.
-async function _iosProbe(driver, tag) {
-  if (!driver.isIOS || !process.env.CI) return;
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const dir = path.resolve(process.cwd(), 'test-results', 'diagnostics');
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `ios-PROBE-${tag}-source.xml`), await driver.getPageSource(), 'utf8');
-  } catch {}
-}
-
 test.describe('Products Module — Product Detail + Add to Cart', () => {
   /** @type {LoginPage} */ let loginPage;
   /** @type {CatalogLandingPage} */ let landingPage;
@@ -145,12 +129,7 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
   async function actionsPD02(driver) {
     await detailPage.waitForPageLoad();
     await detailPage.selectColorByInstance(0);
-    // iter-2 TEMP: inline the first add so we can probe the snackbar tree before
-    // it auto-dismisses (Android: identical to detailPage.addToCart()).
-    const addBtn = await driver.$(detailPage.addToCartBtn);
-    await addBtn.click();
-    await _iosProbe(driver, 'SNACKBAR');
-    variantSnack1 = await detailPage.getAddedSnackbarText();
+    variantSnack1 = await detailPage.addToCart();
     await detailPage.waitForSnackbarDismissed();
     await detailPage.selectColorByInstance(1);
     variantSnack2 = await detailPage.addToCart();
@@ -158,7 +137,6 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     await landingPage.deviceBack();
     await gridPage.waitForPageLoad();
     await gridPage.navigateToCart(); // resolves the cart icon (iOS app-bar geometry)
-    if (driver.isIOS) { await driver.pause(2000); await _iosProbe(driver, 'CART'); } // iter-2 TEMP: harvest cart tree
     await cartPage.waitForPageLoad();
     variantCartLineCount = await cartPage.getLineCount();
     await landingPage.deviceBack();
