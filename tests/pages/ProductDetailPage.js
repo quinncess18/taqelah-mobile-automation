@@ -36,9 +36,13 @@ class ProductDetailPage extends BasePage {
     // The Color label View is NOT clickable, so filtering by clickable(true)
     // on android.view.View isolates the swatches. Instances 0..2 are the
     // three swatches in left-to-right order.
+    // iOS: swatches are 3 nameless XCUIElementTypeOther siblings of the "Color"
+    // StaticText (Flutter Key 'color-swatch-N' doesn't reach accessibilityIdentifier,
+    // confirmed in the §4 detail diagnostic XML). Anchor on the stable "Color"
+    // label via following-sibling — the only Other siblings after it are the swatches.
     this.colorSwatch = (instance) => this.isAndroid
       ? `android=new UiSelector().className("android.view.View").clickable(true).instance(${instance})`
-      : `~color-swatch-${instance}`;
+      : `//XCUIElementTypeStaticText[@name="Color"]/following-sibling::XCUIElementTypeOther[${instance + 1}]`;
 
     this.addToCartBtn = this.byContentDesc('Add to Cart');
 

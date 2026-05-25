@@ -246,7 +246,11 @@ class ProductGridPage extends BasePage {
     const candidates = [];
     for (const c of cards) {
       const desc = await c.getAttribute(this.attrName);
-      if (desc && desc.includes('$')) candidates.push({ el: c, desc });
+      if (!desc || !desc.includes('$')) continue;
+      // iOS exposes off-screen cards as ghost Images (visible=false at 0,0);
+      // clicking one taps (0,0) and never routes to Detail. Keep on-screen only.
+      if (this.isIOS && !(await c.isDisplayed().catch(() => false))) continue;
+      candidates.push({ el: c, desc });
     }
     if (candidates.length === 0) throw new Error('No product cards found on grid');
     const pick = candidates[Math.floor(Math.random() * candidates.length)];
