@@ -77,12 +77,35 @@ test.describe('Products Module — Shopping Cart (§14)', () => {
   }
 
   // ─── PD cascade action helpers (mirrors §12; no assertions) ───
-  async function actionsPD01() {
+
+  // Open Product Detail from a grid pick, tolerant of the Flutter+UIA2 cold-tap
+  // race on CI: the first tap can be swallowed before the card's gesture handler
+  // is wired, so the route never pushes and a single 60s waitForPageLoad just
+  // burns the clock (S02/S03 replay reseed died here — CI run 26422042830,
+  // actionsPD03:109). Re-tap up to 3× with shorter per-attempt waits, but only
+  // while we're still on the grid so we never re-tap a slow-but-loading Detail.
+  // Mirrors the K04 seed fix in 03_checkout.spec.js.
+  async function openDetailFromPick(driver, pick, attempts = 3) {
+    for (let i = 0; i < attempts; i++) {
+      await pick.el.click();
+      try {
+        await detailPage.waitForDisplayed(detailPage.addToCartBtn, i === 0 ? 30000 : 20000);
+        return pick;
+      } catch (err) {
+        const stillOnGrid = await gridPage.isVisible(gridPage.firstProductCard);
+        if (i === attempts - 1 || !stillOnGrid) throw err;
+        // Tap didn't route; the prior element ref may be stale → re-pick + retry.
+        pick = await gridPage.pickRandomProduct();
+      }
+    }
+    return pick;
+  }
+
+  async function actionsPD01(driver) {
     await landingPage.navigateToShopAll();
     await gridPage.waitForPageLoad();
-    const pick = await gridPage.pickRandomProduct();
-    await pick.el.click();
-    await detailPage.waitForPageLoad();
+    let pick = await gridPage.pickRandomProduct();
+    pick = await openDetailFromPick(driver, pick);
     shopAllPick = { name: pick.name, price: pick.price };
   }
 
@@ -98,15 +121,14 @@ test.describe('Products Module — Shopping Cart (§14)', () => {
     await gridPage.waitForPageLoad();
   }
 
-  async function actionsPD03() {
+  async function actionsPD03(driver) {
     await navMenu.open();
     await navMenu.navigateTo(navMenu.navHome);
     await landingPage.waitForPageLoad();
     await landingPage.selectCategory('Casual');
     await gridPage.waitForPageLoad();
-    const pick = await gridPage.pickRandomProduct();
-    await pick.el.click();
-    await detailPage.waitForPageLoad();
+    let pick = await gridPage.pickRandomProduct();
+    pick = await openDetailFromPick(driver, pick);
     casualPick = { name: pick.name };
   }
 
