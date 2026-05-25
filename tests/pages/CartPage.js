@@ -144,12 +144,47 @@ class CartPage extends BasePage {
 
   // ─── Scroll + collect ────────────────────────────────────────────
 
+  /** Vertical [y1, y2] screen span of a line element, cross-platform. */
+  async _lineYRange(el) {
+    if (this.isAndroid) {
+      const b = this._parseBounds(await el.getAttribute('bounds'));
+      return [b.y1, b.y2];
+    }
+    const loc = await el.getLocation();
+    const size = await el.getSize();
+    return [Math.round(loc.y), Math.round(loc.y + size.height)];
+  }
+
+  /**
+   * Read the currently-visible cart lines, ordered by SCREEN POSITION.
+   *
+   * Identifying lines by their text desc alone is unsafe: two color variants of
+   * the same product render an identical desc ("<Name>\n$<price>\n<qty>" — color
+   * is not in the a11y text), and under CI render-lag the a11y tree can return
+   * line nodes out of visual order or with a virtualization ghost (a stale copy
+   * of a row at an overlapping position). Either corrupts the in-order stitch and
+   * doubles the collected total (TC-S03, run 26402569742: a cart with 2×Burgundy
+   * + 2×Copper summed to exactly 2×). So anchor on geometry instead:
+   *   1. sort by y → restores true top-to-bottom order regardless of tree order;
+   *   2. de-ghost → drop any row whose y-range overlaps the previous kept row's
+   *      (a ghost lands on top of a real row; genuine stacked lines only abut, so
+   *      they survive — that's how two same-text variant lines stay distinct).
+   */
   async _readVisibleSnapshot() {
     const lines = await this.driver.$$(this.lineItem);
-    const out = [];
+    const rows = [];
     for (const el of lines) {
       const desc = await el.getAttribute(this.attrName);
-      out.push(this._parseDesc(desc));
+      const [y1, y2] = await this._lineYRange(el);
+      rows.push({ ...this._parseDesc(desc), y1, y2 });
+    }
+    rows.sort((a, b) => a.y1 - b.y1);
+    const OVERLAP_TOL = 5; // px; abutting lines share an edge, ghosts overlap deeper
+    const out = [];
+    for (const r of rows) {
+      const prev = out[out.length - 1];
+      if (prev && r.y1 < prev.y2 - OVERLAP_TOL) continue; // overlaps prev → ghost
+      out.push(r);
     }
     return out;
   }
