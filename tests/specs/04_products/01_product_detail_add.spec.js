@@ -170,6 +170,18 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     await detailPage.waitForPageLoad();
     await detailPage.selectColorByInstance(0);
     variantSnack1 = await detailPage.addToCart();
+    // [PD02-life] iOS+CI: characterize the add-to-cart snackbar lifetime + when
+    // (if ever) the covered swatch uncovers, so we know whether "wait it out" is
+    // even viable vs. needing active dismissal. Temporary.
+    if (process.env.CI && detailPage.isIOS) {
+      const t0 = Date.now();
+      for (let i = 0; i < 12; i++) {
+        const sb = await driver.$(detailPage.addedSnackbar).isDisplayed().catch(() => null);
+        const sw = await driver.$(detailPage.colorSwatch(1)).getAttribute('visible').catch(() => null);
+        console.log(`[PD02-life] t=${Date.now() - t0}ms snackbar=${sb} swatch1.visible=${sw}`);
+        await driver.pause(1500);
+      }
+    }
     await detailPage.waitForSnackbarDismissed();
     await detailPage.selectColorByInstance(1);
     // [PD02-diag] iOS+CI confirmation log (temporary — remove once PD02 is green).
@@ -186,6 +198,12 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
           const vis = await el.getAttribute('visible').catch(() => null);
           console.log(`[PD02-diag] swatch[${i}] visible=${vis} loc=${JSON.stringify(loc)}`);
         }
+        const sbVis = await driver.$(detailPage.addedSnackbar).isDisplayed().catch(() => null);
+        console.log(`[PD02-diag] snackbar.isDisplayed=${sbVis} (after scroll + select swatch 1)`);
+        const fs = require('fs'); const path = require('path');
+        const dir = path.resolve(process.cwd(), 'test-results', 'diagnostics');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'ios-PD02-after-select1-source.xml'), await driver.getPageSource(), 'utf8');
       } catch (err) {
         console.warn(`[PD02-diag] instrumentation failed: ${err.message}`);
       }

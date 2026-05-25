@@ -85,16 +85,20 @@ class ProductDetailPage extends BasePage {
       try {
         const sb = await this.driver.$(this.addedSnackbar);
         if (await sb.isDisplayed()) {
-          // Swipe at 25% width: left of the VIEW CART button (x≈259-370) so we
-          // dismiss the snackbar rather than tap its action. y 725→815 stays
-          // clear of the home indicator (~835).
+          // The actionable add-to-cart snackbar (VIEW CART) is a long-lived
+          // FIXED bottom overlay at y≈687-770; it doesn't reliably swipe-dismiss
+          // (run 26402569742: swatch stayed visible=false after a down-swipe).
+          // But the swatches live in the SCROLLABLE detail content, so scroll the
+          // content up to lift the swatch row clear of the snackbar band, then
+          // tap. Start the drag above the snackbar (y=650) so it scrolls content,
+          // not the overlay.
           const { width } = await this.driver.getWindowRect();
-          const x = Math.round(width * 0.25);
-          await this.swipe(x, 725, x, 815, 400);
+          const x = Math.round(width / 2);
+          await this.swipe(x, 650, x, 330, 600);
         }
       } catch { /* no snackbar up */ }
-      // Whether or not the swipe landed, wait for the swatch to be hittable
-      // (it auto-uncovers when the snackbar finally clears).
+      // Wait for the swatch to be hittable (uncovered by the scroll, or after the
+      // snackbar finally clears) before tapping.
       try { await el.waitForDisplayed({ timeout: 8000 }); } catch { /* tap anyway */ }
     }
     await el.click();
