@@ -46,11 +46,15 @@ const LIGHT_TOLERANCE = 30;
 const PERMISSION_DENY = 'android=new UiSelector().resourceIdMatches(".*permission_deny.*")';
 
 async function sampleAvgBrightness(driver) {
-  const { width, height } = await driver.getWindowRect();
   const base64 = await driver.takeScreenshot();
   const png = PNG.sync.read(Buffer.from(base64, 'base64'));
-  const y = Math.min(Math.round(0.07 * height), png.height - 1);
-  const xs = [0.6, 0.75, 0.9].map((p) => Math.min(Math.round(p * width), png.width - 1));
+  // Sample fractions of the PNG directly so the points are correct regardless of
+  // device-pixel scale: Android screenshots are 1× (png dims == getWindowRect),
+  // but iOS Retina is 2×/3×, so multiplying logical width by 0.6 would land the
+  // iOS samples far left of the intended AppBar position. PNG fractions are
+  // numerically identical to the old logical-coord math on Android.
+  const y = Math.round(0.07 * png.height);
+  const xs = [0.6, 0.75, 0.9].map((p) => Math.round(p * png.width));
   let sum = 0;
   for (const x of xs) {
     const idx = (png.width * y + x) * 4;
@@ -60,6 +64,22 @@ async function sampleAvgBrightness(driver) {
 }
 
 async function denyDialogIfPresent(driver, timeoutMs = 4000) {
+  if (driver.isIOS) {
+    // iOS permission prompts are springboard system alerts, not in-app widgets.
+    // Deny via `mobile: alert` (exact button match; the deny label uses a curly
+    // U+2019 apostrophe — see LocationPage.IOS_ALERT_DENY). When the permission
+    // was already decided on a prior screen (CI runs this after 10_location,
+    // which leaves Location permanently denied) no alert is present → no-op.
+    try {
+      const buttons = await driver.execute('mobile: alert', { action: 'getButtons' });
+      const deny = (buttons || []).find((b) => /^Don.t Allow$/.test(b)) || 'Don’t Allow';
+      await driver.execute('mobile: alert', { action: 'accept', buttonLabel: deny });
+      await driver.pause(1500);
+    } catch {
+      // No alert present — fine.
+    }
+    return;
+  }
   try {
     const btn = await driver.$(PERMISSION_DENY);
     await btn.waitForDisplayed({ timeout: timeoutMs });
@@ -76,7 +96,7 @@ async function returnHome(driver, navMenu, landingPage) {
   // the first back to dismiss the keyboard, requiring a second tap. We
   // try up to 3 times before failing.
   for (let attempt = 1; attempt <= 3; attempt++) {
-    await driver.back();
+    await landingPage.deviceBack(); // cross-platform: Android keyevent-4, iOS app-bar Back / edge-swipe
     await driver.pause(800);
     try {
       await landingPage.waitForDisplayed(landingPage.shopAllBtn, 4000);
@@ -153,7 +173,9 @@ test.describe('Navigation - Dark Mode Suite (TC-DK01-DK03)', () => {
     await driver.pause(800);
     expect(await navMenu.isDarkModeActive()).toBe(true);
 
-    await driver.back();
+    // Close the drawer back to Home: Android device-back; iOS taps the scrim
+    // (an edge-swipe with the drawer open is unreliable / can re-open it).
+    if (driver.isAndroid) await driver.back(); else await navMenu.close();
     await driver.pause(800);
     await landingPage.waitForDisplayed(landingPage.shopAllBtn, 10000);
 
@@ -217,15 +239,19 @@ test.describe('Navigation - Dark Mode Suite (TC-DK01-DK03)', () => {
       { sel: navMenu.navWebView, label: 'WebView', skipSample: true },
       { sel: navMenu.navDialogs, label: 'Dialogs' },
       { sel: navMenu.navForm, label: 'Form' },
-      { sel: navMenu.navPermissions, label: 'Permissions' },
-      { sel: navMenu.navNotifications, label: 'Notifications' },
+      // Permissions / Notifications / Camera are iOS-incompatible (springboard
+      // dialogs + no Simulator camera — see TEST_PLAN iOS matrix), so they are
+      // not "previously-tested pages" on iOS. Skipped there; full Android walk.
+      { sel: navMenu.navPermissions, label: 'Permissions', androidOnly: true },
+      { sel: navMenu.navNotifications, label: 'Notifications', androidOnly: true },
       { sel: navMenu.navTabs, label: 'Tabs' },
-      { sel: navMenu.navCamera, label: 'Camera', denyDialog: true },
+      { sel: navMenu.navCamera, label: 'Camera', denyDialog: true, androidOnly: true },
       { sel: navMenu.navLocation, label: 'Location', denyDialog: true, phoneOnly: true, preSwipe: true },
     ];
 
     for (const step of walk) {
       if (step.phoneOnly && isTablet) continue;
+      if (step.androidOnly && driver.isIOS) continue;
 
       await navMenu.open();
       if (step.preSwipe) {
@@ -262,7 +288,7 @@ test.describe('Navigation - Dark Mode Suite (TC-DK01-DK03)', () => {
     await driver.pause(800);
     expect(await navMenu.isDarkModeActive()).toBe(false);
 
-    await driver.back();
+    if (driver.isAndroid) await driver.back(); else await navMenu.close();
     await driver.pause(800);
     await landingPage.waitForDisplayed(landingPage.shopAllBtn, 10000);
 
