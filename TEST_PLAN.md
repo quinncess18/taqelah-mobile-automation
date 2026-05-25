@@ -63,8 +63,8 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 | §3 Notifications (03/07) | ⏭ | Notification/APNS model differs — deferred to real-device cloud. |
 | §3 Tabs (03/08) | ✅ | Verified (run 26331896225). Tabs/pager/page-hint carry the same labels as Android content-desc but multi-line → name-prefix predicates (`name BEGINSWITH …`); `~` exact-match can't match the newline. No `selected` attr on iOS: top tabs encode selection by element type (selected=`Other`, unselected=`StaticText`), bottom nav by `value="1"` on Buttons — `isSelected` handles both. Search/section bodies via `name CONTAINS`. |
 | §3 Camera (03/09) | ⏭ | Simulator has no camera — deferred to real-device cloud. |
-| §3 Location (03/10) | ⏳ | Inject fixes via `xcrun simctl location`; Android-CI LO02–LO05 skip is iOS-exempt. |
-| §3 Dark Mode (03/11) | ⏳ | System Appearance + in-app switch; pixel tolerances may differ. |
+| §3 Location (03/10) | ✅ | Verified (run 26352407710, LO01–LO08). `simctl privacy reset` re-arms the denied-path dialog; history parsed from `name=` regex; tracking via `~Tracking location updates...`; LO07 deep-links `com.apple.Preferences`; LO08 denies permanently after one tap. Android-CI LO02–LO05 skip is iOS-exempt. |
+| §3 Dark Mode (03/11) | ⚠️ | In progress. System Appearance + in-app switch; pixel tolerances may differ. |
 | §4 Products (04/01) | ⏳ | Snackbar = `XCUIElementTypeOther` overlay selector. |
 | §4 Cart (04/02) | ⏳ | Chains off Products; no iOS rotation needed. |
 | §4 Checkout (04/03) | ⏳ | Pure UI; ports once Products green. |
