@@ -69,16 +69,17 @@ class ProductDetailPage extends BasePage {
    *
    * iOS: the add-to-cart snackbar — an actionable one with a VIEW CART button —
    * is a FIXED bottom overlay at y≈707-770 that outlives any reasonable wait
-   * (still displayed at 19s, run 26405633023) and won't swipe-dismiss. The
-   * swatch row sits at y≈702 (h=36), so its CENTRE (≈720) lands INSIDE the
-   * snackbar band — and `.click()` taps the element centre, so the overlay
-   * swallows it, the colour never changes, and the two variant adds merge into a
-   * single cart line (PD02 fails 2≠1, confirmed in the detail-tree diagnostic
-   * XML: swatches at y=702, snackbar at y=707-770, Add to Cart at y=780).
-   * A single scroll under-lifted the row (it stopped at 702, still in-band), so
-   * scroll the content up in a loop until the swatch CENTRE clears the snackbar
-   * TOP — re-reading both rects each pass (geometry-driven, duration-agnostic).
-   * No-op on the first select (no snackbar up, swatch already clear).
+   * (still displayed at 19s) and won't swipe-dismiss. The swatch row's resting
+   * position is y≈702 (h=36) — that's the scroll LIMIT, confirmed: a scroll loop
+   * couldn't lift it (still y=702 after, run 26422042830), because Add to Cart
+   * (y=780) pins the bottom of the scrollable content. So the swatch CENTRE (≈720)
+   * is permanently INSIDE the snackbar band, and `.click()` (which taps the centre)
+   * is swallowed by the overlay → the colour never changes → the two variant adds
+   * merge to one cart line (PD02 2≠1). Fix: the swatch TOP edge (702) still pokes
+   * ≈5px above the snackbar top (707), so tap that exposed band — coordinates
+   * derived live from the swatch + snackbar rects (canvas-anchored geometry).
+   * One settling scroll first brings the row up from below the fold to its resting
+   * position. No-op on the first select (no snackbar up, swatch already clear).
    */
   async selectColorByInstance(instance) {
     let el = await this.driver.$(this.colorSwatch(instance));
@@ -88,27 +89,43 @@ class ProductDetailPage extends BasePage {
         if (await sb.isDisplayed()) {
           const { width } = await this.driver.getWindowRect();
           const x = Math.round(width / 2);
+          // Settle the swatch row at its resting position (it starts below the fold
+          // / under the snackbar after an add). It can't clear the snackbar — stop
+          // once a scroll no longer moves it (scroll limit reached).
           let prevCenter = null;
-          for (let pass = 0; pass < 5; pass++) {
-            // Re-resolve both rects each pass — the swatch moves with the scroll;
-            // the snackbar stays pinned to the bottom.
-            const sbEl = await this.driver.$(this.addedSnackbar);
-            const sbTop = (await sbEl.getLocation().catch(() => null))?.y ?? 707;
+          for (let pass = 0; pass < 4; pass++) {
             el = await this.driver.$(this.colorSwatch(instance));
             const loc = await el.getLocation().catch(() => null);
             const size = await el.getSize().catch(() => null);
             const centerY = loc && size ? loc.y + size.height / 2 : null;
-            // Clear once the swatch centre is comfortably above the snackbar.
-            if (centerY !== null && centerY < sbTop - 20) break;
-            // Stop if scrolling no longer moves the row (hit the scroll limit).
             if (centerY !== null && prevCenter !== null && Math.abs(centerY - prevCenter) < 4) break;
             prevCenter = centerY;
-            // Drag from above the snackbar (y=640) so it scrolls content, not the overlay.
             await this.swipe(x, 640, x, 300, 500);
             await this.driver.pause(400);
           }
+          // Tap the exposed band of the swatch above the snackbar's top edge.
+          const sbTop = (await this.driver.$(this.addedSnackbar).getLocation().catch(() => null))?.y;
+          el = await this.driver.$(this.colorSwatch(instance));
+          const loc = await el.getLocation().catch(() => null);
+          const size = await el.getSize().catch(() => null);
+          if (sbTop != null && loc && size && sbTop > loc.y && sbTop < loc.y + size.height) {
+            const tapX = Math.round(loc.x + size.width / 2);
+            // 2px into the swatch from its top, but never below the snackbar top.
+            const tapY = Math.min(loc.y + 2, sbTop - 2);
+            await this.driver.performActions([{
+              type: 'pointer', id: 'finger1', parameters: { pointerType: 'touch' },
+              actions: [
+                { type: 'pointerMove', duration: 0, x: tapX, y: tapY },
+                { type: 'pointerDown', button: 0 },
+                { type: 'pause', duration: 60 },
+                { type: 'pointerUp', button: 0 },
+              ],
+            }]);
+            await this.driver.pause(300);
+            return; // tapped via the exposed band; colour changed
+          }
         }
-      } catch { /* no snackbar up */ }
+      } catch { /* no snackbar up — fall through to a normal centre click */ }
       el = await this.driver.$(this.colorSwatch(instance));
       try { await el.waitForDisplayed({ timeout: 8000 }); } catch { /* tap anyway */ }
     }
