@@ -32,23 +32,6 @@ const { NavMenuPage } = require('../../pages/NavMenuPage');
 
 const TC_SEQUENCE = ['PD01', 'PD02', 'PD03', 'PD04', 'PD05', 'PD06', 'SR01', 'SR02'];
 
-// iOS: a location permission system alert can leak in from the preceding
-// Location / Dark Mode specs (the app re-prompts on foreground while permission
-// is undetermined). It overlays the catalog and silently swallows the Shop All
-// tap, so the grid never loads. Products never needs location → deny any pending
-// alert. No-op on Android and when no alert is present.
-async function dismissIosSystemAlert(driver) {
-  if (!driver.isIOS) return;
-  try {
-    const btns = await driver.execute('mobile: alert', { action: 'getButtons' });
-    if (btns && btns.length) {
-      const deny = btns.find((b) => /Don.t Allow/.test(b)) || btns[btns.length - 1];
-      await driver.execute('mobile: alert', { action: 'accept', buttonLabel: deny });
-      await driver.pause(800);
-    }
-  } catch { /* no alert present */ }
-}
-
 test.describe('Products Module — Product Detail + Add to Cart', () => {
   /** @type {LoginPage} */ let loginPage;
   /** @type {CatalogLandingPage} */ let landingPage;
@@ -89,9 +72,6 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     // Re-apply the same Flutter-bridge tuning beforeAll did.
     try { await driver.updateSettings({ waitForIdleTimeout: 0 }); } catch {}
 
-    // Relaunch can re-surface the leftover iOS location alert — clear it.
-    await dismissIosSystemAlert(driver);
-
     // WAIT for the login button rather than single-shot isVisible: after a pm
     // clear cold relaunch Flutter takes hundreds of ms to draw it, so a
     // single-shot check can race false and SKIP login → app stuck on Login →
@@ -108,6 +88,12 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     }
     await landingPage.waitForPageLoad();
 
+    // iOS terminate/launch (noReset) does NOT clear the cart, so each replay
+    // accumulates items and inflates the badge → PD03+ assertions fail (run
+    // 26388004233: PD03 badge 6→8→10). Android's pm clear wipes it implicitly,
+    // so this is iOS-only.
+    if (loginPage.isIOS) await clearIosCart(driver);
+
     const { width } = await driver.getWindowRect();
     if (width > 1200) {
       try {
@@ -119,6 +105,30 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
         console.log(`[fullResetAndLogin] orientation lock failed: ${e?.message || e}`);
       }
     }
+  }
+
+  // iOS-only cart reset (see fullResetAndLogin). Opens the cart from the landing
+  // app-bar and deletes every line, then returns to landing. The delete button is
+  // the 3rd (rightmost) following-sibling Button of a cart-line Image
+  // (minus/plus/delete @ x≈100/188/317; confirmed in the §4 cart diagnostic XML).
+  async function clearIosCart(driver) {
+    await landingPage.navigateToCart();
+    try {
+      await cartPage.waitForPageLoad();
+    } catch {
+      return; // never reached the cart — nothing to clear
+    }
+    const firstLineDelete =
+      '(//XCUIElementTypeImage[contains(@name, "$")])[1]/following-sibling::XCUIElementTypeButton[3]';
+    for (let i = 0; i < 20; i++) {
+      if (await cartPage.isVisible(cartPage.emptyCartMsg)) break;
+      const del = await driver.$(firstLineDelete);
+      if (!(await del.isExisting())) break; // no lines left
+      await del.click();
+      await driver.pause(700);
+    }
+    await landingPage.deviceBack();
+    await landingPage.waitForPageLoad();
   }
 
   // Open Product Detail from a grid pick, tolerant of the Flutter+UIA2 cold-tap
@@ -289,9 +299,6 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     detailPage = new ProductDetailPage(driver);
     cartPage = new CartPage(driver);
     navMenu = new NavMenuPage(driver);
-
-    // Clear any leftover iOS location alert before navigating (see helper).
-    await dismissIosSystemAlert(driver);
 
     // Reach a known anchor (login OR landing) via device-back ×3. Handles
     // the case where a prior spec left the app parked on a deeper screen

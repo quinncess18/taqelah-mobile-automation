@@ -66,11 +66,14 @@ jobs:
             # hide_error_dialogs=1 stops the overlay suite-wide; the smoke warm-up
             # also dismisses it defensively in case it slips through.
             adb shell settings put global hide_error_dialogs 1 || true
-            # DEVICE_0_SETTLE_PAUSE=1500 (bumped from default 800ms) — the CI
-            # emulator is slower than local; Flutter rendering after gestures
-            # (pinch-zoom) and form submit toast can lag past the local-tuned
-            # 800ms. Local tests use the default settle pause unchanged.
-            CI=true DEVICE_COUNT=1 DEVICE_0_UDID=emulator-5554 DEVICE_0_NAME="Pixel 8 (Local)" DEVICE_0_PLATFORM=android DEVICE_0_SYSTEM_PORT=8200 DEVICE_0_CHROMEDRIVER_PORT=9515 DEVICE_0_SETTLE_PAUSE=1500 npm test
+            # DEVICE_0_SETTLE_PAUSE=2500 (bumped from 1500; default is 800ms) —
+            # the CI emulator degrades over the ~90-test single-worker run, and
+            # the timing-heavy modules (Gestures swipes, Form toasts, Cart
+            # delete/total-sum) lag past 1500ms late in the run, producing the
+            # rotating cold-render flakes (M04/T02/S03/F03) and a hard-fail when
+            # one exhausts retries (S04, run 26388004233). Widen the settle
+            # window suite-wide. Local tests use the default settle pause unchanged.
+            CI=true DEVICE_COUNT=1 DEVICE_0_UDID=emulator-5554 DEVICE_0_NAME="Pixel 8 (Local)" DEVICE_0_PLATFORM=android DEVICE_0_SYSTEM_PORT=8200 DEVICE_0_CHROMEDRIVER_PORT=9515 DEVICE_0_SETTLE_PAUSE=2500 npm test
 
       - name: Upload Report
         uses: actions/upload-artifact@v4
