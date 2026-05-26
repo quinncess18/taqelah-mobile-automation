@@ -385,9 +385,17 @@ class CartPage extends BasePage {
     const loc = await lines[index].getLocation();
     const size = await lines[index].getSize();
     const yTop = loc.y, yBot = loc.y + size.height;
-    const all = await this.driver.$$('-ios predicate string:type == "XCUIElementTypeButton" AND visible == 1');
+    // Don't filter on `visible == 1` in the predicate: WDA evaluates that
+    // strictly (ANDs in accessibility), so the DISABLED Minus button at
+    // qty=1 — visible=true but accessible=false in the XML — is dropped,
+    // collapsing the band to 2 buttons. Query all buttons then filter
+    // client-side on rendered size + Y-band, which captures on-screen
+    // buttons regardless of accessibility flags.
+    const all = await this.driver.$$('-ios predicate string:type == "XCUIElementTypeButton"');
     const inLine = [];
     for (const b of all) {
+      const bs = await b.getSize();
+      if (bs.width === 0 || bs.height === 0) continue;
       const bl = await b.getLocation();
       if (bl.y >= yTop && bl.y < yBot) inLine.push({ el: b, x: bl.x });
     }
