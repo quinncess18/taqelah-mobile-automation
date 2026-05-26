@@ -68,6 +68,13 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
   let formPage;
 
   test.beforeAll(async ({ driver }) => {
+    // Bypass the UIA2 "wait for idle" between every command — on cold CI the
+    // Compose tree never idles cleanly after submit/reset/terms-toggle, so
+    // post-state-change `waitForDisplayed` (on the error toast / "Form
+    // submitted!" status) stale-reads and times out. Same lever Cart + Checkout
+    // use; mirrors the [[feedback_android_ci_flaky_harden]] flake family.
+    try { await driver.updateSettings({ waitForIdleTimeout: 0 }); } catch {}
+
     landingPage = new CatalogLandingPage(driver);
     navMenu = new NavMenuPage(driver);
     formPage = new FormValidationPage(driver);
