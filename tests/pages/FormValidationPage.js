@@ -345,8 +345,18 @@ class FormValidationPage extends BasePage {
         // Not yet in the tree, or no scrollable container — fall through to the
         // wait, which gives a lagging label time to render.
       }
+      // HARDFIX (run 26425928045, F05 hard-failed all retries): assert PRESENCE
+      // in the a11y tree, not visual display. scrollIntoView only guarantees the
+      // label is inside the scroll container — NOT clear of the FIXED app bar
+      // overlay, so the top errors (Email/Phone) stay visible=false at scroll-top
+      // and waitForDisplayed times out (the exact positional signature: top-2
+      // errors missing, bottom-2 present). Presence is what F05 actually checks —
+      // "did this format error fire?" — and a fired-but-clipped label exists in
+      // the tree while a genuinely-unfired one (invalid value never landed →
+      // required error instead) is absent, so this stays correct. waitForExist
+      // also rides out the post-submit render lag.
       try {
-        await this.waitForDisplayed(`android=new UiSelector().description("${text}")`, timeout);
+        await this.driver.$(`android=new UiSelector().description("${text}")`).waitForExist({ timeout });
         return true;
       } catch {
         return false;

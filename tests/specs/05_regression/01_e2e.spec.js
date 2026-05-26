@@ -82,10 +82,27 @@ test.describe('Regression (§16) — full E2E', () => {
     // ── Catalog → Shop All → random product → Detail ──
     await landingPage.navigateToShopAll();
     await gridPage.waitForPageLoad();
-    const pick = await gridPage.pickRandomProduct();
+    let pick = await gridPage.pickRandomProduct();
+    // Cold-render tap-swallow guard (same fix as K04 seed / openDetailFromPick):
+    // on a slow CI emulator the first card tap is consumed before the gesture
+    // handler wires, so the route never pushes and a single 60s waitForPageLoad
+    // just burns the clock (run 26425928045, E01:88 — Add to Cart not displayed
+    // after 60s). Re-tap up to 3× with shorter per-attempt waits, re-picking the
+    // (possibly stale) card, but only while still on the grid so we never re-tap
+    // a slow-but-loading Detail.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await pick.el.click();
+      try {
+        await detailPage.waitForDisplayed(detailPage.addToCartBtn, attempt === 1 ? 30000 : 20000);
+        break;
+      } catch (err) {
+        const stillOnGrid = await gridPage.isVisible(gridPage.firstProductCard);
+        if (attempt === 3 || !stillOnGrid) throw err;
+        console.log(`[E01] card tap swallowed (attempt ${attempt}); re-picking`);
+        pick = await gridPage.pickRandomProduct();
+      }
+    }
     console.log(`[E01] picked: "${pick.name}" ${pick.price}`);
-    await pick.el.click();
-    await detailPage.waitForPageLoad();
     expect(await detailPage.isVisible(detailPage.byContentDesc(pick.name))).toBe(true);
 
     // ── Add to Cart ──
