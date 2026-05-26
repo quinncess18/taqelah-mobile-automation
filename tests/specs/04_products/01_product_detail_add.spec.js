@@ -172,31 +172,6 @@ test.describe('Products Module — Product Detail + Add to Cart', () => {
     variantSnack1 = await detailPage.addToCart();
     await detailPage.waitForSnackbarDismissed();
     await detailPage.selectColorByInstance(1);
-    // [PD02-diag] iOS+CI confirmation log (temporary — remove once PD02 is green).
-    // Root cause: the fixed bottom snackbar (y707-770) overlapped the swatch
-    // CENTRE (y720) → .click() swallowed → variant unchanged → 2 adds merge to 1
-    // line (run 26405633023 detail XML). selectColorByInstance now scrolls the
-    // swatch CENTRE clear of the snackbar top before tapping; this logs each
-    // swatch's centre y so the next run confirms swatch 1 was above ~707 at tap.
-    if (process.env.CI && detailPage.isIOS) {
-      try {
-        for (let i = 0; i < 3; i++) {
-          const el = await driver.$(detailPage.colorSwatch(i));
-          const loc = await el.getLocation().catch(() => null);
-          const size = await el.getSize().catch(() => null);
-          const centerY = loc && size ? loc.y + size.height / 2 : null;
-          console.log(`[PD02-diag] swatch[${i}] centerY=${centerY} loc=${JSON.stringify(loc)}`);
-        }
-        const sbVis = await driver.$(detailPage.addedSnackbar).isDisplayed().catch(() => null);
-        console.log(`[PD02-diag] snackbar.isDisplayed=${sbVis} (after scroll + select swatch 1)`);
-        const fs = require('fs'); const path = require('path');
-        const dir = path.resolve(process.cwd(), 'test-results', 'diagnostics');
-        fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(path.join(dir, 'ios-PD02-after-select1-source.xml'), await driver.getPageSource(), 'utf8');
-      } catch (err) {
-        console.warn(`[PD02-diag] instrumentation failed: ${err.message}`);
-      }
-    }
     variantSnack2 = await detailPage.addToCart();
     await detailPage.waitForSnackbarDismissed();
     await landingPage.deviceBack();

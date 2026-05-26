@@ -4,7 +4,7 @@ Defines the test coverage and verification strategy for the Taqelah mobile appli
 
 **Current scope:** Android emulators — Pixel 8 (API 35, local) + Pixel Tablet (API 35, local) for full coverage; CI runs Pixel 6 profile at API 34 (Android 14, google_apis target). 96 TCs across 17 sections verified on local Pixel 8 + Tablet (§0 Smoke, §1–§14 unit modules, §15 Checkout, §16 Regression) — Pixel Tablet skips the 8 Location TCs (AVD GPS emits no fixes). §0 Smoke runs first as a foundation gate (~30s), §16 Regression runs last as a deep cross-module E2E. CI on API 34 with `retries: 2` to absorb emulator flake.
 
-**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5). Verified green: §0 Smoke, §1 Auth, §2 Catalog, §3 Nav Main (03/01), §3 Gestures (03/02), §3 WebView (03/03), §3 Dialogs (03/04), §3 Form (03/05), §3 Tabs (03/08); remaining modules pending selector iteration (see iOS Coverage Matrix). Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
+**iOS:** Simulator path live on GHA `macos-14` (iPhone 15, iOS 17.5). Verified green: §0 Smoke, §1 Auth, §2 Catalog, §3 Nav Main (03/01), §3 Gestures (03/02), §3 WebView (03/03), §3 Dialogs (03/04), §3 Form (03/05), §3 Tabs (03/08), §3 Location (03/10), §3 Dark Mode (03/11), §4 Products (04/01); Cart (04/02) in progress, remaining modules pending selector iteration (see iOS Coverage Matrix). Real-device path (BrowserStack/Sauce) parked — requires a device-signed `.ipa` not currently published.
 
 > Status legend: ✅ Verified · ⚠️ Under investigation · ⏳ Pending · — Not applicable
 
@@ -65,8 +65,8 @@ Tracks per-module iOS Simulator status. Mirrors the Android matrix structure. Sp
 | §3 Camera (03/09) | ⏭ | Simulator has no camera — deferred to real-device cloud. |
 | §3 Location (03/10) | ✅ | Verified (run 26352407710, LO01–LO08). `simctl privacy reset` re-arms the denied-path dialog; history parsed from `name=` regex; tracking via `~Tracking location updates...`; LO07 deep-links `com.apple.Preferences`; LO08 denies permanently after one tap. Android-CI LO02–LO05 skip is iOS-exempt. |
 | §3 Dark Mode (03/11) | ✅ | Verified (run 26376851148, DK01–DK03, first-iter clean). AppBar brightness sampled via PNG fractions (Retina-correct); drawer close via scrim tap; deny via `mobile: alert`. DK02 walk skips Permissions/Notifications/Camera (iOS-incompatible); Location step runs on the denied state inherited from `10_location`. |
-| §4 Products (04/01) | ⏳ | Snackbar = `XCUIElementTypeOther` overlay selector. |
-| §4 Cart (04/02) | ⏳ | Chains off Products; no iOS rotation needed. |
+| §4 Products (04/01) | ✅ | Verified (run 26423583629, PD01–PD06 + SR01–SR02, clean). Swatches are nameless `XCUIElementTypeOther` siblings of the `Color` StaticText. PD02 variant-add: the actionable add-to-cart snackbar is a FIXED bottom overlay (y707-770) the swatch row can't scroll clear of (y702 is the scroll limit), so its centre tap is swallowed → colour unchanged → 1 line. Fix: tap the swatch's exposed top band above the snackbar (coords derived live from both rects). |
+| §4 Cart (04/02) | ⚠️ | Bring-up in progress. Selectors branched (line=`Image name CONTAINS "$"`, total=`StaticText BEGINSWITH "$"`); `_swipeCart` iOS coords viewport-relative. Pending XML iteration: per-line buttons (`_lineButtons`/`getMinusState`) + `_scrollCartToTop`. |
 | §4 Checkout (04/03) | ⏳ | Pure UI; ports once Products green. |
 | §16 Regression | ⏳ | Last; depends on §1–§14 green. |
 
