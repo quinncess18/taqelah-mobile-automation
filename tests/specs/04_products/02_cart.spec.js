@@ -330,6 +330,17 @@ test.describe('Products Module — Shopping Cart (§14)', () => {
     // (i.e. Products spec just ran in this worker.)
     const onLogin = await loginPage.isVisible(loginPage.loginButton);
 
+    // Retry-safety: a prior attempt may have failed *on the Cart screen*
+    // itself (e.g. a TC-S01 assertion fail). Playwright re-runs beforeAll
+    // for each retry, so without this probe we'd take the chained-Products
+    // branch below and call gridPage.navigateToCart() from Cart — where
+    // there's no app-bar cart icon. Short-circuit when we're already on
+    // a populated Cart.
+    if (!onLogin && (await cartPage.isVisible(cartPage.cartTitle))) {
+      const linesAlready = await cartPage.getLineCount().catch(() => 0);
+      if (linesAlready > 0) return;
+    }
+
     if (onLogin) {
       // Standalone-run path: cold session, login + seed cart from scratch.
       await loginPage.waitForPageLoad();
@@ -401,7 +412,10 @@ test.describe('Products Module — Shopping Cart (§14)', () => {
 
     expect(await cartPage.isVisible(cartPage.proceedToCheckoutBtn)).toBe(true);
     const checkoutBtn = await cartPage.driver.$(cartPage.proceedToCheckoutBtn);
-    expect(await checkoutBtn.getAttribute('clickable')).toBe('true');
+    // Interactivity attr is platform-specific: Android exposes `clickable`,
+    // iOS XCUITest exposes `enabled` (and rejects `clickable` outright).
+    const interactiveAttr = cartPage.isAndroid ? 'clickable' : 'enabled';
+    expect(await checkoutBtn.getAttribute(interactiveAttr)).toBe('true');
   });
 
   test('TC-S02: should drive Plus on line 0 from qty=1 up to qty=5, line total + Σ line totals = cart total per tap', async ({ driver }) => {
