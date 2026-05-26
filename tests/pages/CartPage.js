@@ -264,11 +264,44 @@ class CartPage extends BasePage {
   }
 
   /**
-   * Walk the cart ScrollView from top to bottom, stitching snapshots into
-   * one contiguous list. Assumes entry position is at top (typical when
-   * the cart was just opened — no leading scroll-to-top needed).
+   * Collect every cart line, self-validated against the bottom-bar total.
+   *
+   * The multi-snapshot stitch (`_stitchOnce`) is render-lag-fragile: under CI lag
+   * Compose hands the a11y tree back reordered / ghosted / partial, which the
+   * stitch can either DOUBLE (re-append a window — TC-S03 Σ = exactly 2×) or
+   * UNDER-COUNT (de-ghost drops a real abutting line, or the no-progress guard
+   * stops early — TC-S04 read 5 of 7 lines). Both directions surfaced in a single
+   * run (26423583629), so sort + de-ghost + guard alone can't tame it.
+   *
+   * The bottom-bar cart total IS reliable (TC-S02 green across runs), so use it as
+   * ground truth: re-stitch until Σ line totals reconciles with it (one check that
+   * catches over- AND under-count, since a doubled set sums high and a dropped line
+   * sums low). A clean re-read almost always lands within 1-2 tries because the lag
+   * is intermittent, not structural. Falls back to the closest attempt if none
+   * reconcile, so behaviour is never worse than the old single-pass stitch.
    */
   async collectAllLines() {
+    const expectedTotal = await this.getCartTotal();
+    let best = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const lines = await this._stitchOnce();
+      const sum = lines.reduce((s, l) => s + l.total, 0);
+      if (Math.abs(sum - expectedTotal) < 0.01) return lines; // reconciled with truth
+      if (!best || Math.abs(sum - expectedTotal) < Math.abs(best.sum - expectedTotal)) {
+        best = { lines, sum };
+      }
+      await this.driver.pause(this.settlePause); // let render settle before re-reading
+    }
+    return best.lines;
+  }
+
+  /**
+   * One top-to-bottom walk of the cart ScrollView, stitching snapshots into a
+   * contiguous list. Scrolls to top first so each retry starts from a known
+   * position (no-op if nothing's scrollable).
+   */
+  async _stitchOnce() {
+    await this._scrollCartToTop();
     let collected = await this._readVisibleSnapshot();
     let prevVisible = collected;
 
@@ -280,11 +313,7 @@ class CartPage extends BasePage {
       if (snap.length === 0) break;
       // No-progress guard: if the swipe surfaced the SAME multiset of lines
       // (cart fits one viewport, or we're already at the bottom), it didn't
-      // scroll. Under CI render-lag Compose can hand back that same window
-      // *reordered*, and an in-order stitch then fails to find the overlap and
-      // re-appends the whole cart — the exact 2× Σ doubling that hard-failed
-      // TC-S03 on run 26389835383. Stop before stitching; never append a
-      // snapshot that revealed nothing genuinely new.
+      // scroll — never append a snapshot that revealed nothing genuinely new.
       if (this._sameMultiset(prevVisible, snap)) break;
       const k = this._overlapK(collected, snap);
       collected = [...collected, ...snap.slice(k)];
