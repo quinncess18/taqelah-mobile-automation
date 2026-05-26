@@ -217,8 +217,7 @@ test.describe('Products Module — Shopping Cart (§14)', () => {
     for (const tc of PD_SEQUENCE) {
       await PD_ACTIONS[tc](driver);
     }
-    const cartIcon = await driver.$(gridPage.cartBtn);
-    await cartIcon.click();
+    await gridPage.navigateToCart(); // iOS-aware app-bar cart icon (raw cartBtn doesn't resolve on iOS)
     await cartPage.waitForPageLoad();
   }
 
@@ -229,8 +228,7 @@ test.describe('Products Module — Shopping Cart (§14)', () => {
    * Returns true if cart loaded with ≥1 line, false if empty.
    */
   async function enterCartFromCurrent(driver) {
-    const cartIcon = await driver.$(gridPage.cartBtn);
-    await cartIcon.click();
+    await gridPage.navigateToCart(); // iOS-aware app-bar cart icon (raw cartBtn doesn't resolve on iOS)
     await cartPage.waitForPageLoad();
     return (await cartPage.getLineCount()) > 0;
   }
