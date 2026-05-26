@@ -357,11 +357,31 @@ class CartPage extends BasePage {
     if (index >= lines.length) {
       throw new Error(`line button: only ${lines.length} lines, requested ${index}`);
     }
-    const buttons = await lines[index].$$('android.widget.Button');
-    if (buttons.length < 3) {
-      throw new Error(`line ${index} has ${buttons.length} buttons, expected 3`);
+    if (this.isAndroid) {
+      const buttons = await lines[index].$$('android.widget.Button');
+      if (buttons.length < 3) {
+        throw new Error(`line ${index} has ${buttons.length} buttons, expected 3`);
+      }
+      return { minus: buttons[0], plus: buttons[1], delete: buttons[2] };
     }
-    return { minus: buttons[0], plus: buttons[1], delete: buttons[2] };
+    // iOS: per cart-line XML, the stepper buttons are SIBLINGS of the line
+    // Image (not descendants), all 3 at the same Y, x=100/188/317 → Minus,
+    // Plus, Delete. Filter all visible XCUIElementTypeButtons by the line's
+    // Y-band and sort by x. Bounds-derived, no hardcoded coords.
+    const loc = await lines[index].getLocation();
+    const size = await lines[index].getSize();
+    const yTop = loc.y, yBot = loc.y + size.height;
+    const all = await this.driver.$$('-ios predicate string:type == "XCUIElementTypeButton" AND visible == 1');
+    const inLine = [];
+    for (const b of all) {
+      const bl = await b.getLocation();
+      if (bl.y >= yTop && bl.y < yBot) inLine.push({ el: b, x: bl.x });
+    }
+    inLine.sort((a, b) => a.x - b.x);
+    if (inLine.length < 3) {
+      throw new Error(`iOS line ${index} has ${inLine.length} stepper buttons in y-band [${yTop},${yBot}), expected 3`);
+    }
+    return { minus: inLine[0].el, plus: inLine[1].el, delete: inLine[2].el };
   }
 
   // Each tap waits for its effect to land in the a11y tree before returning,
@@ -418,11 +438,22 @@ class CartPage extends BasePage {
   async getMinusState(index) {
     const lines = await this.driver.$$(this.lineItem);
     if (index >= lines.length) throw new Error(`minus state: bad index ${index}`);
-    // First Button descendant within the line subtree (DOM order ⇒ Minus).
-    const minusBtn = await lines[index].$('android.widget.Button');
-    const clickable = await minusBtn.getAttribute('clickable');
-    const enabled = await minusBtn.getAttribute('enabled');
-    return { clickable: clickable === 'true', enabled: enabled === 'true' };
+    if (this.isAndroid) {
+      // First Button descendant within the line subtree (DOM order ⇒ Minus).
+      const minusBtn = await lines[index].$('android.widget.Button');
+      const clickable = await minusBtn.getAttribute('clickable');
+      const enabled = await minusBtn.getAttribute('enabled');
+      return { clickable: clickable === 'true', enabled: enabled === 'true' };
+    }
+    // iOS: reuse the bounds-derived sibling-button lookup. XCUITest has no
+    // `clickable`; the disabled Minus at qty=1 flips both `enabled` and
+    // `accessible` to false (per cart XML), so accessible is the right
+    // proxy for "has a working gesture handler" — preserves the S03
+    // assertion semantics (both flags false when disabled).
+    const { minus } = await this._lineButtons(index);
+    const enabled = await minus.getAttribute('enabled');
+    const accessible = await minus.getAttribute('accessible');
+    return { clickable: accessible === 'true', enabled: enabled === 'true' };
   }
 
   async tapProceedToCheckout() {

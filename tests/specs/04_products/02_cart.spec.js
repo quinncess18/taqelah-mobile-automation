@@ -54,14 +54,30 @@ test.describe('Products Module — Shopping Cart (§14)', () => {
 
   // ─── Universal reset + relogin + portrait lock (tablet) ───
   async function fullResetAndLogin(driver) {
-    await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
-    await driver.pause(2500);
-    await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
-    await driver.pause(1500);
+    if (loginPage.isAndroid) {
+      await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
+      await driver.pause(2500);
+      await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
+      await driver.pause(1500);
+    } else {
+      // iOS: XCUITest has no `mobile: shell`. Mirror the LocationPage pattern
+      // (terminateApp → launchApp). Session noReset means cart state may
+      // survive — probe for Login and skip relogin if already inside the app.
+      try { await driver.execute('mobile: terminateApp', { bundleId: loginPage.appPackage }); } catch {}
+      await driver.pause(1500);
+      await driver.execute('mobile: launchApp', { bundleId: loginPage.appPackage });
+      await driver.pause(2500);
+    }
     try { await driver.updateSettings({ waitForIdleTimeout: 0 }); } catch {}
-    await loginPage.waitForPageLoad();
-    await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
-    await landingPage.waitForPageLoad();
+    if (loginPage.isIOS && !(await loginPage.isVisible(loginPage.loginButton))) {
+      // Already past Login (noReset persisted the session). Treat the app's
+      // current state as the post-login start.
+      await landingPage.waitForPageLoad().catch(() => {});
+    } else {
+      await loginPage.waitForPageLoad();
+      await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
+      await landingPage.waitForPageLoad();
+    }
 
     const { width } = await driver.getWindowRect();
     if (width > 1200) {
