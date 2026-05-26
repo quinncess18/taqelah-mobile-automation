@@ -94,9 +94,36 @@ class CartPage extends BasePage {
 
   // ─── Line readers ────────────────────────────────────────────────
 
-  /** Count of line items currently in the a11y tree (visible only). */
+  /**
+   * Cart-line elements in TOP-TO-BOTTOM screen order, with iOS virtualization
+   * ghosts (zero-size XCUIElementTypeImage nodes that Compose leaves in the
+   * tree for off-screen rows) filtered out.
+   *
+   * Without this projection, iOS `getLine(N)` (raw tree) and `_lineButtons(N)`
+   * (visible-only) targeted different lines: the raw tree lists ghosts FIRST
+   * in DOM order, so `getLine(0)` returned a virtualized-off-screen ghost
+   * while `_lineButtons(0)` returned buttons for the topmost visible line.
+   * `tapPlus(0)` then clicked one line and polled qty on another (run
+   * 26436020137 TC-S02 — Plus tapped Denim 1→2, waitUntil polled a Boho ghost
+   * stuck at 1).
+   */
+  async _orderedLineElements() {
+    const raw = await this.driver.$$(this.lineItem);
+    if (this.isAndroid) return raw;
+    const withY = [];
+    for (const el of raw) {
+      const sz = await el.getSize();
+      if (sz.width === 0 || sz.height === 0) continue; // virtualized ghost
+      const loc = await el.getLocation();
+      withY.push({ el, y: loc.y });
+    }
+    withY.sort((a, b) => a.y - b.y);
+    return withY.map(v => v.el);
+  }
+
+  /** Count of line items currently visible in the cart viewport. */
   async getLineCount() {
-    const lines = await this.driver.$$(this.lineItem);
+    const lines = await this._orderedLineElements();
     return lines.length;
   }
 
@@ -123,7 +150,7 @@ class CartPage extends BasePage {
   }
 
   async getLine(index) {
-    const lines = await this.driver.$$(this.lineItem);
+    const lines = await this._orderedLineElements();
     if (index >= lines.length) {
       throw new Error(`getLine(${index}) — only ${lines.length} lines present`);
     }
@@ -133,7 +160,7 @@ class CartPage extends BasePage {
 
   /** Visible lines only (no scroll). */
   async getAllLines() {
-    const lines = await this.driver.$$(this.lineItem);
+    const lines = await this._orderedLineElements();
     const out = [];
     for (const el of lines) {
       const desc = await el.getAttribute(this.attrName);
@@ -233,6 +260,21 @@ class CartPage extends BasePage {
   }
 
   async _scrollCartToTop() {
+    if (this.isIOS) {
+      // No UiScrollable on iOS, and the `~cart-scroll` Flutter Key doesn't
+      // reach accessibilityIdentifier — so we can't address the ScrollView
+      // directly. Repeatedly swipe content downward (revealing rows above)
+      // until the topmost visible line's Y stops moving (= already at top).
+      let prevTopY = -1;
+      for (let i = 0; i < 6; i++) {
+        const lines = await this._orderedLineElements();
+        const topY = lines.length ? (await lines[0].getLocation()).y : -1;
+        if (topY === prevTopY) break;
+        prevTopY = topY;
+        await this._swipeCart(800, 1800); // fromY < toY ⇒ "scroll up" / reveal above
+      }
+      return;
+    }
     // No-op if nothing's scrollable (cart fits in viewport — typical on
     // tablet portrait with 7 lines).
     const sv = await this.driver.$(this._cartScroll);
@@ -244,6 +286,21 @@ class CartPage extends BasePage {
       // Fallback if no scroll occurred (already at top): UiScrollable throws.
     }
     await this.driver.pause(this.settlePause);
+  }
+
+  /**
+   * Bring line `index` into the live viewport before reading or clicking it.
+   * Scrolls to top first (the typical TC-S02/S03/S04 target is line 0, which
+   * a prior `collectAllLines` swipe-walk leaves scrolled past on iOS), then
+   * swipes down if `index` is past the visible window.
+   */
+  async _ensureLineVisible(index) {
+    await this._scrollCartToTop();
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const lines = await this._orderedLineElements();
+      if (index < lines.length) return;
+      await this._swipeCart(1800, 800);
+    }
   }
 
   /**
@@ -353,21 +410,7 @@ class CartPage extends BasePage {
   // sidesteps the per-device coordinate-offset problem.
 
   async _lineButtons(index) {
-    let lines = await this.driver.$$(this.lineItem);
-    if (this.isIOS) {
-      // iOS virtualizes off-screen cart lines as XCUIElementTypeImage nodes
-      // with the same `$`-bearing name but x=0 y=0 width=0 height=0 visible=
-      // false, and lists them FIRST in DOM order. Without filtering, lines[0]
-      // is an off-screen ghost and y-band collapses to [0,0). Project the
-      // collection to visible lines so `index` matches Android's "0 = topmost
-      // visible" semantics.
-      const visible = [];
-      for (const l of lines) {
-        const sz = await l.getSize();
-        if (sz.height > 0 && sz.width > 0) visible.push(l);
-      }
-      lines = visible;
-    }
+    const lines = await this._orderedLineElements();
     if (index >= lines.length) {
       throw new Error(`line button: only ${lines.length} lines, requested ${index}`);
     }
@@ -413,6 +456,7 @@ class CartPage extends BasePage {
   // 26010878162 TC-S02 attempt 1). Verifying the action eliminates the race.
 
   async tapPlus(index) {
+    await this._ensureLineVisible(index);
     const before = await this.getLine(index);
     const { plus } = await this._lineButtons(index);
     await plus.click();
@@ -423,6 +467,7 @@ class CartPage extends BasePage {
   }
 
   async tapMinus(index) {
+    await this._ensureLineVisible(index);
     const before = await this.getLine(index);
     const { minus } = await this._lineButtons(index);
     await minus.click();
@@ -438,6 +483,7 @@ class CartPage extends BasePage {
     // can stay flat even though the cart genuinely shrunk. Use bottom-bar
     // cart total: it always changes on a real delete and disappears into
     // the empty-state message when the last line goes.
+    await this._ensureLineVisible(index);
     const beforeTotal = await this.getCartTotal();
     const { delete: del } = await this._lineButtons(index);
     await del.click();
@@ -458,7 +504,8 @@ class CartPage extends BasePage {
    * narrow point-elements query — bounds-derived, no hardcoded coords.
    */
   async getMinusState(index) {
-    const lines = await this.driver.$$(this.lineItem);
+    await this._ensureLineVisible(index);
+    const lines = await this._orderedLineElements();
     if (index >= lines.length) throw new Error(`minus state: bad index ${index}`);
     if (this.isAndroid) {
       // First Button descendant within the line subtree (DOM order ⇒ Minus).
