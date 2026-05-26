@@ -198,7 +198,12 @@ class CartPage extends BasePage {
    *      they survive — that's how two same-text variant lines stay distinct).
    */
   async _readVisibleSnapshot() {
-    const lines = await this.driver.$$(this.lineItem);
+    // Route through _orderedLineElements so collectAllLines indexes the same
+    // lines as tap*/getLine. Otherwise iOS ghost rows (y=0, w=h=0 — e.g. a
+    // line virtualized off the bottom after scroll-to-top) sort to the front
+    // of this snapshot but are filtered out by _lineButtons, so beforeLines[0]
+    // and tapDelete(0) point at different lines (run 26443672057 TC-S04).
+    const lines = await this._orderedLineElements();
     const rows = [];
     for (const el of lines) {
       const desc = await el.getAttribute(this.attrName);
