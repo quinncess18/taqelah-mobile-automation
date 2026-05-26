@@ -190,7 +190,21 @@ class CartPage extends BasePage {
   }
 
   async _swipeCart(fromY, toY) {
-    const { width } = await this.driver.getWindowRect();
+    const { width, height } = await this.driver.getWindowRect();
+
+    // iOS: coordinates are point-based (iPhone 15 ≈ 852pt tall), so the Android
+    // phone Y (1800↔800) is off-screen and the swipe errors / no-ops. Derive
+    // viewport-relative coords, preserving caller intent (fromY > toY ⇒ scroll
+    // down / reveal more below).
+    if (this.isIOS) {
+      const centerX = Math.round(width / 2);
+      const down = fromY > toY;
+      const iosFrom = Math.round(height * (down ? 0.72 : 0.40));
+      const iosTo = Math.round(height * (down ? 0.40 : 0.72));
+      await this.swipe(centerX, iosFrom, centerX, iosTo, 500);
+      await this.driver.pause(this.settlePause);
+      return;
+    }
 
     // Tablet branch (width > 1200): derive Y from the live ScrollView
     // bounds. Hardcoded phone Y (1800↔800) sits outside tablet's taller
