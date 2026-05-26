@@ -353,7 +353,21 @@ class CartPage extends BasePage {
   // sidesteps the per-device coordinate-offset problem.
 
   async _lineButtons(index) {
-    const lines = await this.driver.$$(this.lineItem);
+    let lines = await this.driver.$$(this.lineItem);
+    if (this.isIOS) {
+      // iOS virtualizes off-screen cart lines as XCUIElementTypeImage nodes
+      // with the same `$`-bearing name but x=0 y=0 width=0 height=0 visible=
+      // false, and lists them FIRST in DOM order. Without filtering, lines[0]
+      // is an off-screen ghost and y-band collapses to [0,0). Project the
+      // collection to visible lines so `index` matches Android's "0 = topmost
+      // visible" semantics.
+      const visible = [];
+      for (const l of lines) {
+        const sz = await l.getSize();
+        if (sz.height > 0 && sz.width > 0) visible.push(l);
+      }
+      lines = visible;
+    }
     if (index >= lines.length) {
       throw new Error(`line button: only ${lines.length} lines, requested ${index}`);
     }
