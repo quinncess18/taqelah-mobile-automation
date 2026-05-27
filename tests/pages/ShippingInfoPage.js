@@ -35,15 +35,15 @@ class ShippingInfoPage extends BasePage {
 
     // iOS: Flutter TextFields surface with name = the field's visible label
     // (mirrors FormValidationPage's name-fallback contract — Key() does not
-    // reach accessibilityIdentifier). Best-guess labels for iter-1; verify
-    // against the iOS K01 failure-source.xml dump and adjust if the visible
-    // labels differ (e.g. "Address Line 1" vs "Address 1").
+    // reach accessibilityIdentifier). Labels confirmed against the K02
+    // failure-source.xml from run 26500171944 (Address 1 → "Address Line 1",
+    // Address 2 → "Address Line 2 (Optional)", Zip → "Zip Code").
     this.fullNameInput  = this.isAndroid ? scrollEditText(0) : '~Full Name';
-    this.address1Input  = this.isAndroid ? scrollEditText(1) : '~Address 1';
-    this.address2Input  = this.isAndroid ? scrollEditText(2) : '~Address 2';
+    this.address1Input  = this.isAndroid ? scrollEditText(1) : '~Address Line 1';
+    this.address2Input  = this.isAndroid ? scrollEditText(2) : '~Address Line 2 (Optional)';
     this.cityInput      = this.isAndroid ? scrollEditText(3) : '~City';
     this.stateInput     = this.isAndroid ? scrollEditText(4) : '~State';
-    this.zipInput       = this.isAndroid ? scrollEditText(5) : '~Zip';
+    this.zipInput       = this.isAndroid ? scrollEditText(5) : '~Zip Code';
     this.countryInput   = this.isAndroid ? scrollEditText(6) : '~Country';
 
     // To Payment button — leaves Shipping → Review Order.
