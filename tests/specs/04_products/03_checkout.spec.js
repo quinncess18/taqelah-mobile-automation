@@ -163,10 +163,10 @@ test.describe('Products Module — Checkout (§15)', () => {
       }
     }
 
-    // Open Cart and snapshot entry state.
+    // Open Cart and snapshot entry state. Use navigateToCart (platform-branched)
+    // — the raw gridPage.cartBtn selector is Android-only and silently no-ops on iOS.
     console.log('[CK-seed] opening Cart');
-    const cartIcon = await driver.$(gridPage.cartBtn);
-    await cartIcon.click();
+    await gridPage.navigateToCart();
     await cartPage.waitForPageLoad();
 
     entryLines = await cartPage.collectAllLines();
@@ -214,6 +214,12 @@ test.describe('Products Module — Checkout (§15)', () => {
   async function seedCartFromCurrentGrid(driver, itemCount) {
     const pickedNames = [];
     const seen = new Set();
+    // Baseline the badge — Playwright retries replay beforeAll on a session
+    // that already has the prior attempt's items in the in-memory cart
+    // (terminateApp + launchApp doesn't reset Flutter cart state on iOS, and
+    // the chained path can succeed mid-loop on a prior attempt). Without the
+    // baseline, expectedBadge = i+1 mis-counts and the waitUntil times out.
+    const startBadge = await gridPage.getCartBadgeCount();
     for (let i = 0; i < itemCount; i++) {
       let pick;
       let attempts = 0;
@@ -223,7 +229,7 @@ test.describe('Products Module — Checkout (§15)', () => {
       } while (seen.has(pick.name) && attempts < 5);
       seen.add(pick.name);
 
-      const expectedBadge = i + 1;
+      const expectedBadge = startBadge + i + 1;
       console.log(`[CK-seed] add ${i + 1}/${itemCount}: tap "${pick.name}"`);
 
       if (process.env.CI) {
