@@ -75,10 +75,20 @@ class ShippingInfoPage extends BasePage {
   async typeInto(fieldSelector, value) {
     const el = await this.waitForDisplayed(fieldSelector, 10000);
     await el.click();
+    // Intra-action pauses mirror FormValidationPage.typeIntoField — without
+    // them, on iOS CI Flutter under render-lag, addValue commits to the
+    // a11y `value` before the TextEditingController can bind. Validators
+    // then read empty controller.text on submit and fire "required field"
+    // errors despite a11y showing the field as populated (see
+    // [[feedback_ios_validator_coupling]] + run 26509598351 K02 XML dump:
+    // all 7 fields had value="..." AND "This field is required" labels).
+    await this.driver.pause(200);
     await el.clearValue();
+    await this.driver.pause(200);
     if (value && value.length > 0) {
       await el.addValue(value);
     }
+    await this.driver.pause(200);
     if (this.isAndroid) {
       try { await this.driver.hideKeyboard(); } catch {}
     }
