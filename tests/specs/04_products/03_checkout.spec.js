@@ -364,6 +364,12 @@ test.describe('Products Module — Checkout (§15)', () => {
 
     // → Review Order
     await shippingPage.tapToPayment();
+    // Diagnostic: dump XML immediately, before the 10s waitForPageLoad —
+    // tells us whether the 6 "required" errors are *fresh* re-renders
+    // (validators saw empty controllers ⇒ typing path bug) or stale
+    // leftovers from K01's empty submit (validators didn't re-evaluate
+    // ⇒ different bug class). Gated to iOS-CI only.
+    await shippingPage._iosFillDiag('post-tap-payment');
     await reviewPage.waitForPageLoad();
 
     // Shipping Address card: with Address 2 populated, the desc joins

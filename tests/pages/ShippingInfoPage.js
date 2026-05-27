@@ -101,13 +101,39 @@ class ShippingInfoPage extends BasePage {
    * Address 2 may be empty string — typeInto handles that as a no-op type.
    */
   async fillForm(customer) {
-    await this.typeInto(this.fullNameInput, customer.fullName);
-    await this.typeInto(this.address1Input, customer.address1);
-    await this.typeInto(this.address2Input, customer.address2);
-    await this.typeInto(this.cityInput, customer.city);
-    await this.typeInto(this.stateInput, customer.state);
-    await this.typeInto(this.zipInput, customer.zip);
-    await this.typeInto(this.countryInput, customer.country);
+    const fields = [
+      ['fullName', this.fullNameInput,  customer.fullName],
+      ['address1', this.address1Input,  customer.address1],
+      ['address2', this.address2Input,  customer.address2],
+      ['city',     this.cityInput,      customer.city],
+      ['state',    this.stateInput,     customer.state],
+      ['zip',      this.zipInput,       customer.zip],
+      ['country',  this.countryInput,   customer.country],
+    ];
+    for (const [key, sel, val] of fields) {
+      await this.typeInto(sel, val);
+      // CI iOS controller-bind diagnostic — dump XML after each field to
+      // distinguish "addValue queued and never commits" from "commits per
+      // field but Flutter resets on next focus". Only fires for the iOS
+      // K-test bring-up; Android is unaffected.
+      await this._iosFillDiag(`fill-${key}`);
+    }
+  }
+
+  async _iosFillDiag(label) {
+    if (!process.env.CI || !this.isIOS) return;
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const dir = path.join('test-results', 'diagnostics');
+      fs.mkdirSync(dir, { recursive: true });
+      const stamp = Date.now();
+      const xml = await this.driver.getPageSource();
+      fs.writeFileSync(path.join(dir, `ship-${label}-${stamp}.xml`), xml);
+      console.log(`[ship/diag] dumped ${label} @ ${stamp}`);
+    } catch (e) {
+      console.log(`[ship/diag] dump failed: ${e?.message || e}`);
+    }
   }
 
   /**
