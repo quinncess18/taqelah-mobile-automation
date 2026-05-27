@@ -33,13 +33,18 @@ class ShippingInfoPage extends BasePage {
       `android=new UiScrollable(new UiSelector().scrollable(true).instance(0))` +
       `.scrollIntoView(new UiSelector().className("android.widget.EditText").instance(${n}))`;
 
-    this.fullNameInput  = this.isAndroid ? scrollEditText(0) : '~fullname-input';
-    this.address1Input  = this.isAndroid ? scrollEditText(1) : '~address1-input';
-    this.address2Input  = this.isAndroid ? scrollEditText(2) : '~address2-input';
-    this.cityInput      = this.isAndroid ? scrollEditText(3) : '~city-input';
-    this.stateInput     = this.isAndroid ? scrollEditText(4) : '~state-input';
-    this.zipInput       = this.isAndroid ? scrollEditText(5) : '~zip-input';
-    this.countryInput   = this.isAndroid ? scrollEditText(6) : '~country-input';
+    // iOS: Flutter TextFields surface with name = the field's visible label
+    // (mirrors FormValidationPage's name-fallback contract — Key() does not
+    // reach accessibilityIdentifier). Best-guess labels for iter-1; verify
+    // against the iOS K01 failure-source.xml dump and adjust if the visible
+    // labels differ (e.g. "Address Line 1" vs "Address 1").
+    this.fullNameInput  = this.isAndroid ? scrollEditText(0) : '~Full Name';
+    this.address1Input  = this.isAndroid ? scrollEditText(1) : '~Address 1';
+    this.address2Input  = this.isAndroid ? scrollEditText(2) : '~Address 2';
+    this.cityInput      = this.isAndroid ? scrollEditText(3) : '~City';
+    this.stateInput     = this.isAndroid ? scrollEditText(4) : '~State';
+    this.zipInput       = this.isAndroid ? scrollEditText(5) : '~Zip';
+    this.countryInput   = this.isAndroid ? scrollEditText(6) : '~Country';
 
     // To Payment button — leaves Shipping → Review Order.
     this.toPaymentBtn = this.isAndroid
@@ -50,7 +55,7 @@ class ShippingInfoPage extends BasePage {
     // submit). Address 2 stays clean — never gets this child.
     this.requiredFieldError = this.isAndroid
       ? 'android=new UiSelector().description("This field is required")'
-      : '~required-field-error';
+      : '~This field is required';
   }
 
   async waitForPageLoad() {

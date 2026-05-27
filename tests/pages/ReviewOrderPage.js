@@ -32,20 +32,22 @@ class ReviewOrderPage extends BasePage {
     // node whose desc has ≥3 `\n` (4-line or 5-line address card).
     // Concrete selector: any View with descriptionContains(",") to match
     // "City, State Zip" line — simpler than over-anchoring.
+    // iOS: name-fallback exact-match isn't usable for a multi-line dynamic
+    // label; predicate substring against "City, State Zip" comma line.
     this.shippingAddressCard = this.isAndroid
       ? 'android=new UiSelector().descriptionContains(", ")'
-      : '~shipping-address-card';
+      : '-ios predicate string:name CONTAINS ", "';
 
     // Order Summary line items: View (not ImageView like Cart) with
     // content-desc containing "Qty:". Confirmed against review_dump.xml.
     this.reviewLineItem = this.isAndroid
       ? 'android=new UiSelector().className("android.view.View").descriptionContains("Qty:")'
-      : '~review-line-item';
+      : '-ios predicate string:name CONTAINS "Qty:"';
 
     // Bottom-bar Total — same shape as Cart (View, desc starts with $).
     this.totalValue = this.isAndroid
       ? 'android=new UiSelector().className("android.view.View").descriptionStartsWith("$")'
-      : '~review-total-value';
+      : '-ios predicate string:name BEGINSWITH "$"';
 
     // Place Order — wrap in UiScrollable so it works on long carts where
     // the button falls below the fold.

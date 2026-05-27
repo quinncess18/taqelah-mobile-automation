@@ -106,14 +106,18 @@ test.describe('Products Module — Checkout (§15)', () => {
     thankYouPage = new ThankYouPage(driver);
 
     // Defensive tablet portrait re-lock (Cart's afterAll reverts to landscape).
-    const { width } = await driver.getWindowRect();
-    if (width > 1200) {
-      try {
-        await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'accelerometer_rotation', '0'] });
-        await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'user_rotation', '1'] });
-        await driver.pause(2500);
-      } catch (e) {
-        console.log(`[beforeAll] portrait lock failed: ${e?.message || e}`);
+    // Android-only — UIA2 `mobile: shell` is unavailable on iOS XCUITest, and
+    // iPhone 15 sim is phone-sized so the tablet branch never applies anyway.
+    if (loginPage.isAndroid) {
+      const { width } = await driver.getWindowRect();
+      if (width > 1200) {
+        try {
+          await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'accelerometer_rotation', '0'] });
+          await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'user_rotation', '1'] });
+          await driver.pause(2500);
+        } catch (e) {
+          console.log(`[beforeAll] portrait lock failed: ${e?.message || e}`);
+        }
       }
     }
 
@@ -269,24 +273,40 @@ test.describe('Products Module — Checkout (§15)', () => {
    * on Catalog Landing reliably.
    */
   async function fullResetAndLogin(driver) {
-    await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
-    await driver.pause(2500);
-    await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
-    await driver.pause(1500);
+    if (loginPage.isAndroid) {
+      await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
+      await driver.pause(2500);
+      await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
+      await driver.pause(1500);
+    } else {
+      // iOS: no `mobile: shell` on XCUITest. Mirror 02_cart's pattern —
+      // terminateApp + launchApp. noReset means session may already be past
+      // Login; probe before re-logging in.
+      try { await driver.execute('mobile: terminateApp', { bundleId: loginPage.appPackage }); } catch {}
+      await driver.pause(1500);
+      await driver.execute('mobile: launchApp', { bundleId: loginPage.appPackage });
+      await driver.pause(2500);
+    }
     try { await driver.updateSettings({ waitForIdleTimeout: 0 }); } catch {}
-    await loginPage.waitForPageLoad();
-    await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
-    await landingPage.waitForPageLoad();
+    if (loginPage.isIOS && !(await loginPage.isVisible(loginPage.loginButton))) {
+      await landingPage.waitForPageLoad().catch(() => {});
+    } else {
+      await loginPage.waitForPageLoad();
+      await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
+      await landingPage.waitForPageLoad();
+    }
 
-    const { width } = await driver.getWindowRect();
-    if (width > 1200) {
-      try {
-        await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'accelerometer_rotation', '0'] });
-        await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'user_rotation', '1'] });
-        await driver.pause(2500);
-        await landingPage.waitForPageLoad();
-      } catch (e) {
-        console.log(`[CK-seed/recovery] portrait lock failed: ${e?.message || e}`);
+    if (loginPage.isAndroid) {
+      const { width } = await driver.getWindowRect();
+      if (width > 1200) {
+        try {
+          await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'accelerometer_rotation', '0'] });
+          await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'user_rotation', '1'] });
+          await driver.pause(2500);
+          await landingPage.waitForPageLoad();
+        } catch (e) {
+          console.log(`[CK-seed/recovery] portrait lock failed: ${e?.message || e}`);
+        }
       }
     }
   }
@@ -446,14 +466,16 @@ test.describe('Products Module — Checkout (§15)', () => {
       await driver.back();
       await driver.pause(500);
     }
-    const { width } = await driver.getWindowRect();
-    if (width > 1200) {
-      try {
-        await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'user_rotation', '0'] });
-        await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'accelerometer_rotation', '1'] });
-        await driver.pause(2000);
-      } catch (e) {
-        console.log(`[checkout/afterAll] orientation revert failed: ${e?.message || e}`);
+    if (loginPage.isAndroid) {
+      const { width } = await driver.getWindowRect();
+      if (width > 1200) {
+        try {
+          await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'user_rotation', '0'] });
+          await driver.execute('mobile: shell', { command: 'settings', args: ['put', 'system', 'accelerometer_rotation', '1'] });
+          await driver.pause(2000);
+        } catch (e) {
+          console.log(`[checkout/afterAll] orientation revert failed: ${e?.message || e}`);
+        }
       }
     }
   });

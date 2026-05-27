@@ -21,9 +21,11 @@ class ThankYouPage extends BasePage {
       ? 'android=new UiSelector().description("Thank You!")'
       : '~Thank You!';
 
+    // iOS: body is a multi-line label; `~` is exact-match so use predicate
+    // CONTAINS against the first-line phrase.
     this.body = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("order has been placed successfully")'
-      : '~thank-you-body';
+      : '-ios predicate string:name CONTAINS "order has been placed successfully"';
 
     this.continueShoppingBtn = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.Button").description("Continue Shopping")'
