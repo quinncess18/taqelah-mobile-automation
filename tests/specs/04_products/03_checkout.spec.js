@@ -267,7 +267,7 @@ test.describe('Products Module — Checkout (§15)', () => {
       console.log(`[CK-seed] add ${i + 1}/${itemCount}: Detail ready, tapping Add to Cart`);
       await detailPage.addToCart();
       await detailPage.waitForSnackbarDismissed();
-      await driver.back();
+      await gridPage.deviceBack();
       await gridPage.waitForPageLoad();
       await driver.waitUntil(async () => {
         return (await gridPage.getCartBadgeCount()) === expectedBadge;

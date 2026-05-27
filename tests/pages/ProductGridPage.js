@@ -50,9 +50,13 @@ class ProductGridPage extends BasePage {
       : '-ios predicate string:type == "XCUIElementTypeStaticText" AND name MATCHES "^[0-9]+$"';
     
     // Search & Metadata
+    // iOS: `~Search dresses...` is the placeholder a11y label — it only
+    // resolves when the field is empty. Once a value is typed (e.g. §13
+    // "shorts" residue carried into §15), the placeholder vanishes and the
+    // tilde finder throws. Class-chain to the first TextField is value-agnostic.
     this.searchInput = this.isAndroid
       ? 'android=new UiSelector().className("android.widget.EditText")'
-      : '~Search dresses...';
+      : '-ios class chain:**/XCUIElementTypeTextField[1]';
 
     this.resultCount = this.isAndroid
       ? 'android=new UiSelector().descriptionContains("Showing")'
