@@ -145,12 +145,22 @@ test.describe('Products Module — Checkout (§15)', () => {
       await seedCartFromCurrentGrid(driver, itemCount);
     } catch (e) {
       console.log(`[CK-seed] chained path failed: ${e?.message || e}`);
+      // Capture the actual screen state before recovery wipes it — beforeAll
+      // failures bypass the _failureDiagnostic fixture, so without this dump
+      // iOS bring-up has no ground truth for the post-Continue-Shopping screen.
+      await dumpK01SeedDiagnostic(driver, 'chained-fail', '(beforeAll-chained)');
       console.log('[CK-seed] recovering via pm clear + relogin + Boho-from-Landing');
       await fullResetAndLogin(driver);
       console.log('[CK-seed] recovery: selecting Boho category');
-      await landingPage.selectCategory('Boho');
-      await gridPage.waitForPageLoad();
-      await seedCartFromCurrentGrid(driver, itemCount);
+      try {
+        await landingPage.selectCategory('Boho');
+        await gridPage.waitForPageLoad();
+        await seedCartFromCurrentGrid(driver, itemCount);
+      } catch (e2) {
+        console.log(`[CK-seed] recovery path failed: ${e2?.message || e2}`);
+        await dumpK01SeedDiagnostic(driver, 'recovery-fail', '(beforeAll-recovery)');
+        throw e2;
+      }
     }
 
     // Open Cart and snapshot entry state.
