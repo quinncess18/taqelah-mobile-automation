@@ -376,14 +376,24 @@ test.describe('Products Module — Checkout (§15)', () => {
     const reviewLines = await reviewPage.getOrderSummaryLines();
     expect(reviewLines.length).toBe(entryLineCount);
 
-    // Match per-line — both lists were captured in DOM/scroll order;
-    // cross-reference by name for tolerance to ordering.
-    const reviewByName = new Map(reviewLines.map((l) => [l.name, l]));
+    // Match per-line. Cart can hold two variant lines that share a product
+    // name (e.g. "Casual Sundress" qty=2 + "Casual Sundress" qty=1 — same
+    // SKU, different colors); a name-keyed Map collapses them. Match into
+    // a mutable pool by (name, qty, total) and remove on hit so the second
+    // variant binds to the second review entry, not the first.
+    const reviewPool = reviewLines.map((l) => ({ ...l }));
     for (const cartLine of entryLines) {
-      const rev = reviewByName.get(cartLine.name);
-      expect(rev, `Review missing line "${cartLine.name}"`).toBeTruthy();
-      expect(rev.qty).toBe(cartLine.qty);
-      expect(rev.total).toBeCloseTo(cartLine.total, 2);
+      const idx = reviewPool.findIndex(
+        (r) =>
+          r.name === cartLine.name &&
+          r.qty === cartLine.qty &&
+          Math.abs(r.total - cartLine.total) < 0.01,
+      );
+      expect(
+        idx,
+        `Review missing line "${cartLine.name}" qty=${cartLine.qty} total=$${cartLine.total}`,
+      ).toBeGreaterThanOrEqual(0);
+      reviewPool.splice(idx, 1);
     }
 
     // Bottom-bar Total = Cart Total = Σ review-line totals.
@@ -441,9 +451,9 @@ test.describe('Products Module — Checkout (§15)', () => {
       await seedCartFromCurrentGrid(driver, 2);
     }
 
-    // Cart → Shipping
-    const cartIcon = await driver.$(gridPage.cartBtn);
-    await cartIcon.click();
+    // Cart → Shipping. navigateToCart() branches by platform (raw cartBtn
+    // is Android-only — same fix as K01's beforeAll cart-open).
+    await gridPage.navigateToCart();
     await cartPage.waitForPageLoad();
     await cartPage.tapProceedToCheckout();
     await shippingPage.waitForPageLoad();
