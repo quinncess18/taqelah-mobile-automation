@@ -410,6 +410,13 @@ test.describe('Products Module — Checkout (§15)', () => {
 
     // Place Order → Thank You
     await reviewPage.tapPlaceOrder();
+    // Diagnostic: K02 final-state XML showed test stuck on Review with
+    // Place Order still present — was the tap a no-op, or did it nav to a
+    // Thank You whose iOS label differs from `~Thank You!`? Dump twice
+    // (immediate + 5s later) so we see both transition and settled state.
+    await shippingPage._iosFillDiag('post-place-order-immediate');
+    await driver.pause(5000);
+    await shippingPage._iosFillDiag('post-place-order-5s');
     await thankYouPage.waitForPageLoad();
     expect(await thankYouPage.isVisible(thankYouPage.title)).toBe(true);
     expect(await thankYouPage.isVisible(thankYouPage.body)).toBe(true);
