@@ -284,11 +284,16 @@ test.describe('Navigation - Form Validation Suite (TC-F01-F06)', () => {
     // single resetToTop() swipe doesn't always reach absolute top — Email
     // and Phone error labels stay off-screen, Compose tree narrows them
     // out of the a11y bridge, and hasValidationError's waitForExist times
-    // out even though the labels did render. Use a 3-swipe reset on phone
-    // to guarantee absolute top + 800ms settle for re-render.
-    const { width: vw5b } = await driver.getWindowRect();
-    await formPage.resetToTop(vw5b > 1200 ? 2 : 3);
-    await driver.pause(800);
+    // out even though the labels did render. CI-only: 3-swipe reset on
+    // phone + 800ms settle. Local Pixel 8 stays at the default 1-swipe
+    // path (no render lag observed).
+    if (process.env.CI) {
+      const { width: vw5b } = await driver.getWindowRect();
+      await formPage.resetToTop(vw5b > 1200 ? 2 : 3);
+      await driver.pause(800);
+    } else {
+      await formPage.resetToTop();
+    }
 
     // Format errors fire for the four invalid fields. hasValidationError gates
     // on render-lag AND scrolls each label into view — F05 deterministically
