@@ -51,7 +51,16 @@ test.describe('Regression (§16) — full E2E', () => {
       await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
       await driver.pause(1500);
     } else {
+      // iOS: terminateApp + launchApp alone does NOT wipe Flutter's
+      // persisted cart on Simulator (run 26559889300 E01 dump showed
+      // badge="3" leftover from earlier specs). `mobile: clearApp`
+      // wipes app data + sandbox → true cold-launch parity with
+      // Android's pm clear.
       try { await driver.execute('mobile: terminateApp', { bundleId: loginPage.appPackage }); } catch {}
+      await driver.pause(1000);
+      try { await driver.execute('mobile: clearApp', { bundleId: loginPage.appPackage }); } catch (e) {
+        console.log(`[E01/iOS-reset] clearApp failed: ${e?.message || e}`);
+      }
       await driver.pause(1500);
       await driver.execute('mobile: launchApp', { bundleId: loginPage.appPackage });
       await driver.pause(2500);
