@@ -117,6 +117,20 @@ class ShippingInfoPage extends BasePage {
       // K-test bring-up; Android is unaffected.
       await this._iosFillDiag(`fill-${key}`);
     }
+    // iOS only — at this point the last field still has focus and the
+    // keyboard is up (post-tap-payment XML at e911908 shows `q w e r t y`
+    // keyboard row still rendered). Flutter commits the controller on
+    // defocus/blur; without an explicit defocus, the last field's
+    // TextEditingController stays empty even though a11y value="..." is
+    // set. Tap the non-interactive page title to defocus → dismiss
+    // keyboard → commit all controllers before To Payment is tapped.
+    if (this.isIOS) {
+      try {
+        const title = await this.driver.$(this.title);
+        await title.click();
+      } catch {}
+      await this.driver.pause(800);
+    }
   }
 
   async _iosFillDiag(label) {
