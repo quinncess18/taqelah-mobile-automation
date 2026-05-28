@@ -12,11 +12,6 @@ class NavMenuPage extends BasePage {
   constructor(driver) {
     super(driver);
 
-    // Structural Selectors
-    this.menuDrawer = this.isAndroid 
-      ? 'android=new UiSelector().className("android.widget.ScrollView")' 
-      : '~nav-drawer';
-
     // iOS: drawer items are Flutter Key()-less — Appium's `~` finder falls back
     // to the visible-text `name`, so each `~<text>` mirrors the Android
     // description (proven by LoginPage.logout()'s `~Logout` on iOS smoke).
