@@ -479,7 +479,10 @@ test.describe('Products Module — Checkout (§15)', () => {
     await shippingPage.tapToPayment();
     await reviewPage.waitForPageLoad();
 
-    await driver.back();
+    // raw driver.back() does NOT pop Flutter on iOS (see BasePage.deviceBack
+    // — "iOS WDA back is a no-op on Flutter routes"). Use the platform-
+    // branched helper so the Review → Shipping pop works on both lanes.
+    await reviewPage.deviceBack();
     await shippingPage.waitForPageLoad();
 
     // All 7 entered values must round-trip verbatim — including the
