@@ -85,7 +85,14 @@ class ShippingInfoPage extends BasePage {
     await el.clearValue();
     await this.driver.pause(p);
     if (value && value.length > 0) {
-      await el.addValue(value);
+      // iOS: append Return → fires onSubmitted/onEditingComplete →
+      // Flutter commits TextEditingController.text before the next
+      // field gets focus. Without this, 441d3db's title-tap defocus
+      // didn't release the last field (keyboard stayed up, 6 fields
+      // still showed "required"). Return-per-field is the canonical
+      // Flutter commit trigger. Android stays as plain addValue
+      // (setValue/addValue both commit synchronously on Android).
+      await el.addValue(this.isIOS ? value + '\n' : value);
     }
     await this.driver.pause(p);
     if (this.isAndroid) {
@@ -116,20 +123,6 @@ class ShippingInfoPage extends BasePage {
       // field but Flutter resets on next focus". Only fires for the iOS
       // K-test bring-up; Android is unaffected.
       await this._iosFillDiag(`fill-${key}`);
-    }
-    // iOS only — at this point the last field still has focus and the
-    // keyboard is up (post-tap-payment XML at e911908 shows `q w e r t y`
-    // keyboard row still rendered). Flutter commits the controller on
-    // defocus/blur; without an explicit defocus, the last field's
-    // TextEditingController stays empty even though a11y value="..." is
-    // set. Tap the non-interactive page title to defocus → dismiss
-    // keyboard → commit all controllers before To Payment is tapped.
-    if (this.isIOS) {
-      try {
-        const title = await this.driver.$(this.title);
-        await title.click();
-      } catch {}
-      await this.driver.pause(800);
     }
   }
 
