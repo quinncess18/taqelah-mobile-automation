@@ -284,6 +284,36 @@ test.describe('Products Module — Checkout (§15)', () => {
   }
 
   /**
+   * Fill Shipping → tapToPayment → wait for Review. iOS-only self-heal:
+   * the addValue→TextEditingController bind is probabilistic on iOS
+   * (won 2x in 6166486+557fe86, lost in daba825), so if Review doesn't
+   * appear within 3s, re-fill the whole form and re-tap once. K01 has
+   * already left us on Shipping Info with all 7 fields empty + 6 errors,
+   * so a re-fill starts from the same baseline.
+   *
+   * Android takes the straight path (no retry — Android setValue/addValue
+   * commits synchronously, no race observed there).
+   */
+  async function fillAndReachReview(driver, customer) {
+    await shippingPage.fillForm(customer);
+    await shippingPage.tapToPayment();
+    if (shippingPage.isIOS) {
+      try {
+        await reviewPage.waitForDisplayed(reviewPage.title, 3000);
+        return;
+      } catch {
+        console.log('[K-fillAndReachReview] Review not visible @ 3s on iOS — re-filling once');
+      }
+      // Still on Shipping (or stale). Re-fill from current empty/dirty state.
+      // K01's prior empty submit left "required" errors visible but fields
+      // empty — same baseline as the first attempt.
+      await shippingPage.fillForm(customer);
+      await shippingPage.tapToPayment();
+    }
+    await reviewPage.waitForPageLoad();
+  }
+
+  /**
    * pm clear + relaunch + login + tablet portrait re-lock. Matches the
    * same shape as §12/§14's fullResetAndLogin so the recovery path lands
    * on Catalog Landing reliably.
@@ -360,17 +390,7 @@ test.describe('Products Module — Checkout (§15)', () => {
     // Fill all 7 fields with the standard happy-path fixture (Jane Doe,
     // Unit 04-12 → exercises the Address-2-renders-its-own-line surface).
     const customer = checkoutData.valid[0].customer;
-    await shippingPage.fillForm(customer);
-
-    // → Review Order
-    await shippingPage.tapToPayment();
-    // Diagnostic: dump XML immediately, before the 10s waitForPageLoad —
-    // tells us whether the 6 "required" errors are *fresh* re-renders
-    // (validators saw empty controllers ⇒ typing path bug) or stale
-    // leftovers from K01's empty submit (validators didn't re-evaluate
-    // ⇒ different bug class). Gated to iOS-CI only.
-    await shippingPage._iosFillDiag('post-tap-payment');
-    await reviewPage.waitForPageLoad();
+    await fillAndReachReview(driver, customer);
 
     // Shipping Address card: with Address 2 populated, the desc joins
     // 5 lines (without Address 2 it would be 4).
@@ -473,11 +493,7 @@ test.describe('Products Module — Checkout (§15)', () => {
 
     // Fill all 7 fields with valid[0] fixture.
     const customer = checkoutData.valid[0].customer;
-    await shippingPage.fillForm(customer);
-
-    // → Review (then immediately Back)
-    await shippingPage.tapToPayment();
-    await reviewPage.waitForPageLoad();
+    await fillAndReachReview(driver, customer);
 
     // raw driver.back() does NOT pop Flutter on iOS (see BasePage.deviceBack
     // — "iOS WDA back is a no-op on Flutter routes"). Use the platform-

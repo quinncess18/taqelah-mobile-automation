@@ -85,19 +85,14 @@ class ShippingInfoPage extends BasePage {
     await el.clearValue();
     await this.driver.pause(p);
     if (value && value.length > 0) {
-      if (this.isIOS) {
-        // iOS: `mobile: type` routes through XCUITest's typeText() →
-        // UIKit text input pipeline → Flutter's onChanged listener
-        // commits to TextEditingController per keystroke. el.addValue
-        // (used in 6166486) was probabilistic — landed bound ~70% of
-        // the time but bypassed the controller under CI load, leaving
-        // the validator to see empty text. Append \n to fire
-        // onSubmitted/onEditingComplete as the final commit trigger.
-        await this.driver.execute('mobile: type', { text: value + '\n' });
-      } else {
-        // Android: setValue/addValue commit synchronously.
-        await el.addValue(value);
-      }
+      // iOS: append Return → fires onSubmitted/onEditingComplete →
+      // Flutter commits TextEditingController.text before the next
+      // field gets focus. Probabilistic (~70% green per run), but
+      // `mobile: type` (37c2a1f) regressed worse (K02 sanity-check
+      // failed in 3.9s, unclear why). Self-heal wrapper at the
+      // tapToPayment level covers the residual race.
+      // Android stays as plain addValue (commits synchronously).
+      await el.addValue(this.isIOS ? value + '\n' : value);
     }
     await this.driver.pause(p);
     if (this.isAndroid) {
