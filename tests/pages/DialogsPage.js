@@ -267,13 +267,28 @@ class DialogsPage extends BasePage {
     // default card. iOS exposes the text as the element `name`/`label`, Android
     // as content-desc. (getResultText is only called after the dialog closes,
     // so an open picker's own colon-bearing labels aren't in the tree.)
+    //
+    // Post-dialog-close race (D05 run 26563996782): the picker's exit
+    // animation can leave both selectors transiently un-bound right
+    // after Cancel/OK + waitForDisplayed(title). Retry 3x with a small
+    // settle between to catch the result card once it re-renders.
     const postActionSel = this.isAndroid
       ? 'android=new UiSelector().descriptionContains(":")'
       : '-ios predicate string:name CONTAINS ":"';
-    const postActionEl = await this.driver.$(postActionSel);
-    if (await postActionEl.isExisting()) {
-      return await postActionEl.getAttribute(this.attrName);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const postActionEl = await this.driver.$(postActionSel);
+      if (await postActionEl.isExisting()) {
+        return await postActionEl.getAttribute(this.attrName);
+      }
+      const el = await this.driver.$(this.resultCard);
+      if (await el.isExisting()) {
+        return await el.getAttribute(this.attrName);
+      }
+      await this.driver.pause(500);
     }
+    // Last-resort: fall through to the resultCard getAttribute so the
+    // caller sees the canonical "element wasn't found" error if both
+    // selectors are still missing after the retry window.
     const el = await this.driver.$(this.resultCard);
     return await el.getAttribute(this.attrName);
   }
