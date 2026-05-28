@@ -126,8 +126,33 @@ class ProductDetailPage extends BasePage {
           }
         }
       } catch { /* no snackbar up — fall through to a normal centre click */ }
+      // Snackbar dismissed path: the swatch row may have shifted out of the
+      // viewport between the first add and now (waitForSnackbarDismissed pause
+      // gives the Detail page time to settle to a different scroll position).
+      // PD02 run 26562046402 flaked here — variantCartLineCount=1 because the
+      // second swatch click landed off-screen → no color change → both adds
+      // went to the same variant. Pre-scroll the swatch into viewport center.
       el = await this.driver.$(this.colorSwatch(instance));
       try { await el.waitForDisplayed({ timeout: 8000 }); } catch { /* tap anyway */ }
+      const { width: vw, height: vh } = await this.driver.getWindowRect();
+      for (let pass = 0; pass < 3; pass++) {
+        const loc = await el.getLocation().catch(() => null);
+        const size = await el.getSize().catch(() => null);
+        if (!loc || !size) break;
+        const centerY = loc.y + size.height / 2;
+        // Already centered-enough — between 20% and 70% of viewport height.
+        if (centerY > vh * 0.2 && centerY < vh * 0.7) break;
+        const x = Math.round(vw / 2);
+        if (centerY >= vh * 0.7) {
+          // Below comfort zone — swipe up to bring it higher.
+          await this.swipe(x, Math.round(vh * 0.7), x, Math.round(vh * 0.3), 350);
+        } else {
+          // Above comfort zone — swipe down to bring it lower.
+          await this.swipe(x, Math.round(vh * 0.3), x, Math.round(vh * 0.7), 350);
+        }
+        await this.driver.pause(300);
+        el = await this.driver.$(this.colorSwatch(instance));
+      }
     }
     await el.click();
     await this.driver.pause(300);
