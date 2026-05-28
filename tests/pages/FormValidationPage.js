@@ -196,20 +196,35 @@ class FormValidationPage extends BasePage {
    * @param {string} value
    */
   async typeIntoField(selector, value) {
-    const el = await this.driver.$(selector);
-    // Wait for the field to enter the a11y tree before clicking. On slower
-    // CI Flutter, the previous field's focus can transiently narrow the
-    // tree (instance(N) selectors stale momentarily — see
-    // feedback_compose_tree_narrowing). CI run 25708179594 hit this on
-    // TC-F02 first attempt: EditText.instance(1) (Email) was missing
-    // right after Name was typed. waitForDisplayed gives it time to land.
-    await el.waitForDisplayed({ timeout: 5000 });
-    await el.click();
-    await this.driver.pause(200);
-    await el.clearValue();
-    await this.driver.pause(200);
-    await el.addValue(value);
-    await this.driver.pause(200);
+    // CI under heavy render lag occasionally lands addValue into a stale
+    // sibling field (the Compose tree narrows during the keyboard-up
+    // transition, instance(N) re-resolves to the wrong EditText). F03
+    // ran into this twice in a row on Pixel 8 CI — Number field stayed
+    // empty, validators reported "Enter 1-100", Terms-required toast
+    // never fired (see run 26549009148 F03 diag PNG: Phone filled but
+    // Number empty). Verify-and-retry up to 2x: after addValue, read
+    // the field back; if empty, re-click + re-type. Limits the blast
+    // radius without changing happy-path timing.
+    let attempt = 0;
+    let landed = false;
+    while (attempt < 3 && !landed) {
+      const el = await this.driver.$(selector);
+      await el.waitForDisplayed({ timeout: 5000 });
+      await el.click();
+      await this.driver.pause(200);
+      await el.clearValue();
+      await this.driver.pause(200);
+      await el.addValue(value);
+      await this.driver.pause(200);
+      // Skip readback for empty input (clearing-only path).
+      if (!value || value.length === 0) { landed = true; break; }
+      const got = (await el.getText().catch(() => '')) || '';
+      if (got === String(value)) { landed = true; break; }
+      attempt++;
+      if (attempt < 3) {
+        await this.driver.pause(300);
+      }
+    }
     // Dismiss the soft keyboard before returning. While the keyboard is
     // up Flutter's semantic tree collapses unfocused fields and the
     // scrollable container from the a11y bridge (verified via CI run
