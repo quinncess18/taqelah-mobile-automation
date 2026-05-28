@@ -137,6 +137,11 @@ test.describe('Navigation - Tabs & Navigation Suite (TC-T01-T06)', () => {
     await navMenu.navigateTo(navMenu.navTabs);
     await tabsPage.waitForPageLoad();
 
+    // Pager re-renders on re-entry, transiently passes through Page 2
+    // before settling on Page 1 (Android CI flake: instant isVisible at
+    // re-entry caught the transitional Page 2 state). Wait up to 5s for
+    // Page 1's hint to actually appear before the assertion fires.
+    try { await tabsPage.waitForDisplayed(tabsPage.pageHint(1), 5000); } catch {}
     const onPage1 = await tabsPage.isVisible(tabsPage.pageHint(1));
     const feedSelected = await tabsPage.isSelected(tabsPage.feedTab);
     expect(onPage1).toBe(true);
