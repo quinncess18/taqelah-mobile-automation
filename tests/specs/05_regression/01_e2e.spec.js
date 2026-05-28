@@ -42,11 +42,20 @@ test.describe('Regression (§16) — full E2E', () => {
     thankYouPage = new ThankYouPage(driver);
 
     // Hard reset — regression starts from a cold app, ignoring whatever
-    // earlier specs left behind. pm clear + am force-stop + am start.
-    await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
-    await driver.pause(2500);
-    await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
-    await driver.pause(1500);
+    // earlier specs left behind. Android: pm clear + am start. iOS:
+    // terminateApp + launchApp (no mobile:shell on XCUITest). Matches
+    // §15 Checkout's fullResetAndLogin platform branching.
+    if (loginPage.isAndroid) {
+      await driver.execute('mobile: shell', { command: 'pm', args: ['clear', loginPage.appPackage] });
+      await driver.pause(2500);
+      await driver.execute('mobile: shell', { command: 'am', args: ['start', '-W', '-n', `${loginPage.appPackage}/.MainActivity`] });
+      await driver.pause(1500);
+    } else {
+      try { await driver.execute('mobile: terminateApp', { bundleId: loginPage.appPackage }); } catch {}
+      await driver.pause(1500);
+      await driver.execute('mobile: launchApp', { bundleId: loginPage.appPackage });
+      await driver.pause(2500);
+    }
     try { await driver.updateSettings({ waitForIdleTimeout: 0 }); } catch {}
 
     // Defensive: wait for the Login UI to actually be usable before the
@@ -54,16 +63,25 @@ test.describe('Regression (§16) — full E2E', () => {
     // username field isn't yet bound in the a11y tree → setValue silently
     // targets nothing → submit happens with empty fields → app stays on
     // Login → landing.waitForPageLoad() times out (observed first run).
-    await loginPage.waitForDisplayed(loginPage.usernameField, 20000);
-    await loginPage.waitForDisplayed(loginPage.passwordField, 5000);
-    await loginPage.waitForDisplayed(loginPage.loginButton, 5000);
+    // iOS noReset preserves session — terminateApp/launchApp may restore
+    // straight to Landing (TC-L06 pattern); only wait for Login if we're
+    // actually on Login.
+    if (loginPage.isAndroid || (await loginPage.isVisible(loginPage.loginButton))) {
+      await loginPage.waitForDisplayed(loginPage.usernameField, 20000);
+      await loginPage.waitForDisplayed(loginPage.passwordField, 5000);
+      await loginPage.waitForDisplayed(loginPage.loginButton, 5000);
+    }
   });
 
   test('TC-E01: full single-product purchase journey — cold launch to badge cleared', async ({ driver }) => {
-    // ── Login ──
-    await loginPage.waitForPageLoad();
-    await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
-    await landingPage.waitForPageLoad();
+    // ── Login (iOS noReset may have restored to Landing — probe first) ──
+    if (loginPage.isIOS && !(await loginPage.isVisible(loginPage.loginButton))) {
+      await landingPage.waitForPageLoad();
+    } else {
+      await loginPage.waitForPageLoad();
+      await loginPage.login(loginPage.defaultUser, loginPage.defaultPass);
+      await landingPage.waitForPageLoad();
+    }
 
     // Tablet portrait lock (post-login per §12 pattern — landscape makes
     // product cards taller than viewport, breaking the a11y tree).
@@ -110,11 +128,15 @@ test.describe('Regression (§16) — full E2E', () => {
     await detailPage.waitForSnackbarDismissed();
 
     // ── Back to grid → assert badge=1 → open Cart ──
-    await driver.back();
+    // deviceBack() platform-branches: Android KEYCODE_BACK, iOS app-bar
+    // Back tap (raw driver.back() is a no-op on iOS Flutter routes).
+    await gridPage.deviceBack();
     await gridPage.waitForPageLoad();
     expect(await gridPage.getCartBadgeCount()).toBe(1);
-    const cartIcon = await driver.$(gridPage.cartBtn);
-    await cartIcon.click();
+    // navigateToCart() platform-branches: Android taps cartBtn directly,
+    // iOS finds the app-bar cart button by visible coords (raw cartBtn
+    // selector is Android-only).
+    await gridPage.navigateToCart();
     await cartPage.waitForPageLoad();
 
     // ── Verify cart contents ──
