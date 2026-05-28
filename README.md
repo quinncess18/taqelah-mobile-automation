@@ -26,7 +26,7 @@ Production-grade automation framework for the **Taqelah Boutique** Flutter appli
 | §16 Regression | TC-E01 | Full cross-module E2E — runs last |
 
 ## 🚀 Key Features
-- **Cross-Platform Architecture:** Codebase runs on both Android (Pixel 8, Pixel Tablet) and iOS (Simulator). Android suite is fully verified across all 17 sections; iOS Simulator runs §0 smoke on GHA `macos-14` and is being expanded module-by-module.
+- **Cross-Platform Architecture:** Codebase runs on both Android (Pixel 8, Pixel Tablet) and iOS (Simulator). Android suite is fully verified across all 17 sections. iOS Simulator on GHA `macos-14` covers all 14 iOS-applicable modules (§0 Smoke through §16 Regression); §3 Permissions / Notifications / Camera are iOS-incompatible and omitted from the iOS lane.
 - **Safe-Zone Gestures:** Device-agnostic logic using a **30% width safe zone**, avoiding all system handles and split-view triggers on wide screens.
 - **Cross-Platform POMs:** Intelligent Page Objects using the "Ternary Selector" pattern to bridge Android and iOS Flutter TestKeys.
 - **Sequential Cross-Device Execution:** `workers: 1` in `playwright.config.js` runs each device project (Pixel 8, Pixel Tablet) sequentially — avoids Appium port collisions and UIAutomator2 session crashes.
@@ -57,7 +57,7 @@ Production-grade automation framework for the **Taqelah Boutique** Flutter appli
 - **Mobile Driver:** [Appium 2.x](https://appium.io/)
 - **Client Library:** [WebdriverIO 8.x](https://webdriver.io/)
 - **Android Driver:** `uiautomator2` (installed)
-- **iOS Driver:** `xcuitest` (installed; CI runs §0–§3 on iOS Simulator via GHA `macos-14`)
+- **iOS Driver:** `xcuitest` (installed; CI runs §0 Smoke through §16 Regression on iOS Simulator via GHA `macos-14` — all 14 iOS-applicable modules)
 
 ## 🚦 Getting Started
 
