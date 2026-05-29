@@ -39,11 +39,6 @@ class CatalogLandingPage extends BasePage {
       ? 'android=new UiSelector().description("Shop All")'
       : '~Shop All';
 
-    // Category Headers
-    this.sectionHeader = this.isAndroid
-      ? 'android=new UiSelector().description("Shop by Category")'
-      : '~Shop by Category';
-
     this.viewAllCategoriesBtn = this.isAndroid
       ? 'android=new UiSelector().description("View All")'
       : '~View All';

@@ -1,6 +1,23 @@
 # Taqelah Mobile Automation Framework
 
+[![CI](https://github.com/quinncess18/taqelah-mobile-automation/actions/workflows/mobile-automation.yml/badge.svg)](https://github.com/quinncess18/taqelah-mobile-automation/actions/workflows/mobile-automation.yml)
+[![Playwright](https://img.shields.io/badge/Playwright-Test-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
+[![Appium](https://img.shields.io/badge/Appium-2.x-662D91?logo=appium&logoColor=white)](https://appium.io/)
+[![WebdriverIO](https://img.shields.io/badge/WebdriverIO-8.x-EA5906?logo=webdriverio&logoColor=white)](https://webdriver.io/)
+[![Android](https://img.shields.io/badge/Android-API%2029--35-3DDC84?logo=android&logoColor=white)](#)
+[![iOS](https://img.shields.io/badge/iOS-Simulator%2017.5-000000?logo=apple&logoColor=white)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 Production-grade automation framework for the **Taqelah Boutique** Flutter application. This project uses a hybrid architecture combining **Playwright** for test orchestration and **Appium (WebdriverIO)** for mobile interaction, with cross-platform Android + iOS as the design goal.
+
+## ✨ Project Highlights
+
+- ✅ **96 test cases across 17 sections** — all green on Pixel 8 + Pixel Tablet (local) and the GHA Android + iOS Simulator lanes.
+- ✅ **Cross-platform Page Objects** — one POM per screen; selectors branch via `this.isAndroid` / `this.isIOS` (Ternary Selector pattern).
+- ✅ **Hybrid stack** — Playwright orchestration + WebdriverIO/Appium driver, sequential cross-device execution to avoid Appium port collisions.
+- ✅ **iOS Simulator CI** on `macos-14` covering all 14 iOS-applicable modules (Permissions/Notifications/Camera are platform-incompatible and omitted).
+- ✅ **Bookend test design** — §0 Smoke runs first as a foundation gate (~30s); §16 Regression runs last as a deep cross-module E2E.
+- ✅ **API compatibility matrix** — every module declares its min API + rationale; CI runs API 34 (Android 14), local runs API 35.
 
 ## 🏁 Coverage Summary
 
@@ -111,5 +128,21 @@ npx playwright test tests/specs/01_auth/01_functional.spec.js --project="Pixel 8
 npx playwright test --project="Pixel 8 (Local)" -g "TC-L01"
 ```
 
+## 🤖 CI / CD
+
+GitHub Actions workflow [`mobile-automation.yml`](./.github/workflows/mobile-automation.yml) runs both platforms on every push to `main`:
+
+| Lane | Runner | Driver | Scope | Retries | Artifacts |
+|---|---|---|---|---|---|
+| **Android** | `ubuntu-22.04` + KVM | UIAutomator2 / Pixel 6 AVD @ API 34 | All 17 sections (Location's GPS-warm-up cascade skipped — see TEST_PLAN) | 2 | `playwright-report-android`, `test-results-android` |
+| **iOS** | `macos-14` (Apple Silicon) | XCUITest / iPhone 15 Simulator @ iOS 17.5 | All 14 iOS-applicable modules (Permissions/Notifications/Camera omitted) | 2 | `playwright-report-ios`, `test-results-ios` |
+
+Both lanes upload Playwright HTML reports and `test-results/` (screenshots, traces, diagnostic XML dumps) on failure for offline debugging.
+
 ## 📝 Documentation
 - [TEST_PLAN.md](./TEST_PLAN.md): Current test coverage, per-device verification status, and the per-module API compatibility matrix.
+- [LICENSE](./LICENSE): MIT.
+
+---
+
+**Status:** ✅ All 17 sections green on Pixel 8 + Pixel Tablet (local) and Android + iOS Simulator (CI). · **Last verified:** 2026-05-29.

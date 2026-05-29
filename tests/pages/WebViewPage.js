@@ -47,21 +47,6 @@ class WebViewPage extends BasePage {
     // so they lack content-desc attributes. Using className + bounds-based
     // instance indexing as a fallback. These are informational only — the spec
     // does not interact with them directly.
-    // Button instance order across the full hierarchy:
-    //   instance(0) = Back (header), instance(1) = Go (URL bar),
-    //   instance(2) = bottom btn 1, instance(3) = bottom btn 2,
-    //   instance(4) = bottom btn 3
-    this.bottomNavBack = this.isAndroid
-      ? 'android=new UiSelector().className("android.widget.Button").instance(2)'
-      : '~browser-back';
-
-    this.bottomNavForward = this.isAndroid
-      ? 'android=new UiSelector().className("android.widget.Button").instance(3)'
-      : '~browser-forward';
-
-    this.bottomNavRefresh = this.isAndroid
-      ? 'android=new UiSelector().className("android.widget.Button").instance(4)'
-      : '~browser-refresh';
   }
 
   async waitForPageLoad() {

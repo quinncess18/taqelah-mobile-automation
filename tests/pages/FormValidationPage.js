@@ -140,33 +140,17 @@ class FormValidationPage extends BasePage {
       ? 'android=new UiSelector().description("Email is required")'
       : '~Email is required';
 
-    this.errorEmailInvalid = this.isAndroid
-      ? 'android=new UiSelector().description("Enter a valid email")'
-      : '~Enter a valid email';
-
     this.errorPhoneRequired = this.isAndroid
       ? 'android=new UiSelector().description("Phone is required")'
       : '~Phone is required';
-
-    this.errorPhoneInvalid = this.isAndroid
-      ? 'android=new UiSelector().description("At least 10 digits")'
-      : '~At least 10 digits';
 
     this.errorNumberRequired = this.isAndroid
       ? 'android=new UiSelector().description("Required")'
       : '~Required';
 
-    this.errorNumberRange = this.isAndroid
-      ? 'android=new UiSelector().description("Enter 1-100")'
-      : '~Enter 1-100';
-
     this.errorPasswordRequired = this.isAndroid
       ? 'android=new UiSelector().description("Password is required")'
       : '~Password is required';
-
-    this.errorPasswordMin = this.isAndroid
-      ? 'android=new UiSelector().description("Min 6 characters")'
-      : '~Min 6 characters';
 
     this.errorCategoryRequired = this.isAndroid
       ? 'android=new UiSelector().description("Please select a category")'

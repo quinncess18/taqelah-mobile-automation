@@ -324,26 +324,6 @@ class PermissionsPage extends BasePage {
   // ── Backwards Compatibility Aliases ──
 
   /**
-   * Accept an incoming native dialog with "While using the app" fallback to "Only this time".
-   * @deprecated Use acceptWhileUsing() or acceptOneTime() explicitly.
-   */
-  async acceptNativeDialog() {
-    try {
-      await this.acceptWhileUsing();
-    } catch {
-      await this.acceptOneTime();
-    }
-  }
-
-  /**
-   * Deny the native permission dialog.
-   * @deprecated Use denyPermission() instead.
-   */
-  async denyNativeDialog() {
-    await this.denyPermission();
-  }
-
-  /**
    * Reset all app permissions via ADB shell.
    * Clears the permission state back to "Not checked" for all permissions.
    */

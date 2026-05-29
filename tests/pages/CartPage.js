@@ -55,11 +55,6 @@ class CartPage extends BasePage {
       ? 'android=new UiSelector().className("android.widget.ImageView").descriptionContains("$")'
       : '-ios predicate string:type == "XCUIElementTypeImage" AND name CONTAINS "$"';
 
-    // Bottom bar
-    this.totalLabel = this.isAndroid
-      ? 'android=new UiSelector().description("Total:")'
-      : '~Total:';
-
     // Total value: View with content-desc like "$914.93". Line totals live
     // inside ImageView nodes, so className=View + descriptionStartsWith("$")
     // resolves uniquely. (descriptionMatches with regex anchors flaked under
@@ -156,17 +151,6 @@ class CartPage extends BasePage {
     }
     const desc = await lines[index].getAttribute(this.attrName);
     return this._parseDesc(desc);
-  }
-
-  /** Visible lines only (no scroll). */
-  async getAllLines() {
-    const lines = await this._orderedLineElements();
-    const out = [];
-    for (const el of lines) {
-      const desc = await el.getAttribute(this.attrName);
-      out.push(this._parseDesc(desc));
-    }
-    return out;
   }
 
   // ─── Scroll + collect ────────────────────────────────────────────
@@ -392,6 +376,14 @@ class CartPage extends BasePage {
       // scroll — never append a snapshot that revealed nothing genuinely new.
       if (this._sameMultiset(prevVisible, snap)) break;
       const k = this._overlapK(collected, snap);
+      // Zero-overlap guard: a half-viewport swipe ALWAYS keeps some lines
+      // visible from the previous snapshot, so k=0 means snap is a transient
+      // mid-render read (e.g. line 0 captured mid-qty-tap → different `raw`
+      // than the same line in `collected`). Appending it would double every
+      // line — the exact failure signature of S02/S03/S04 hard-fails where
+      // computedSum = 2× cartTotal. Skip this snapshot, retain prevVisible
+      // so the next pass's `_sameMultiset` check still anchors on a real read.
+      if (k === 0) continue;
       collected = [...collected, ...snap.slice(k)];
       prevVisible = snap;
     }

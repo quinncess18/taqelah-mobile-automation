@@ -62,14 +62,6 @@ class ProductGridPage extends BasePage {
       ? 'android=new UiSelector().descriptionContains("Showing")'
       : '-ios predicate string:type == "XCUIElementTypeStaticText" AND name BEGINSWITH "Showing"';
     
-    // Grid Elements — iOS product cards are Images whose name/label is the
-    // multi-line "<name>\n$<price>". Match on the name prefix (Key()
-    // 'product-<slug>' doesn't reach accessibilityIdentifier). `~` is
-    // exact-match, so a BEGINSWITH predicate is required for the prefix.
-    this.productCard = (name) => this.isAndroid
-      ? `android=new UiSelector().className("android.widget.ImageView").descriptionContains("${name}")`
-      : `-ios predicate string:type == "XCUIElementTypeImage" AND name BEGINSWITH "${name}"`;
-
     // Per-card add-to-cart buttons are nameless on iOS (Key() 'add-to-cart'
     // lost). NOTE: not yet positionally resolved for iOS — §4 (the only
     // consumer) is Android-only today; convert from an item-present iOS dump

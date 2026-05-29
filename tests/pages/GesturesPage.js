@@ -16,15 +16,11 @@ class GesturesPage extends BasePage {
     // iOS: Flutter Key()-less — `~<visible text>` name-fallback mirrors the
     // Android description; CONTAINS predicates for partial/positional matches.
     // Swipe Cards Section
-    this.sectionSwipeCards = this.isAndroid ? 'android=new UiSelector().description("Swipe Cards")' : '~Swipe Cards';
-    this.instructionSwipe = this.isAndroid ? 'android=new UiSelector().description("Swipe right to favorite, left to delete")' : '~Swipe right to favorite, left to delete';
     this.swipeCard = (index) => this.isAndroid
       ? `android=new UiSelector().description("Swipe Card ${index}")`
       : `~Swipe Card ${index}`;
 
     // Drag & Drop Section
-    this.sectionDragDrop = this.isAndroid ? 'android=new UiSelector().description("Drag & Drop Reorder")' : '~Drag & Drop Reorder';
-    this.instructionDragDrop = this.isAndroid ? 'android=new UiSelector().description("Long press and drag to reorder")' : '~Long press and drag to reorder';
     this.dragItem = (id) => this.isAndroid
       ? `android=new UiSelector().descriptionContains("Drag Item ${id}")`
       : `-ios predicate string:name CONTAINS "Drag Item ${id}"`;
@@ -64,7 +60,6 @@ class GesturesPage extends BasePage {
     this.optionCopy = this.isAndroid ? 'android=new UiSelector().description("Copy")' : '~Copy';
     this.optionShare = this.isAndroid ? 'android=new UiSelector().description("Share")' : '~Share';
     this.optionDelete = this.isAndroid ? 'android=new UiSelector().description("Delete")' : '~Delete';
-    this.optionDismiss = this.isAndroid ? 'android=new UiSelector().description("Dismiss menu")' : '~Dismiss menu';
   }
 
   async waitForPageLoad() {

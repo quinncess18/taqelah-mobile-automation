@@ -115,11 +115,6 @@ class TabsPage extends BasePage {
     await this.driver.pause(this.settlePause);
   }
 
-  async tapBottomHome() {
-    await (await this.driver.$(this.bottomHome)).click();
-    await this.driver.pause(this.settlePause);
-  }
-
   async tapBottomFavorites() {
     await (await this.driver.$(this.bottomFavorites)).click();
     await this.driver.pause(this.settlePause);

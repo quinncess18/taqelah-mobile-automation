@@ -140,10 +140,6 @@ class NotificationsPage extends BasePage {
       ? 'android=new UiSelector().description("DemoApp")'
       : '~in-app-dialog';
 
-    this.inAppDialogMessage = this.isAndroid
-      ? 'android=new UiSelector().description("This is an in-app notification dialog. It can show important alerts without leaving the app.")'
-      : '~in-app-dialog-message';
-
     this.dialogLaterBtn = this.isAndroid
       ? 'android=new UiSelector().description("LATER")'
       : '~dialog-later';
@@ -155,11 +151,6 @@ class NotificationsPage extends BasePage {
     // ── Native OS Notification Permission Dialog (PermissionController) ──
     // Triggered automatically on page load (Android 13+ / API 33+).
     // Uses the same PermissionController pattern as PermissionsPage.
-
-    // Dialog message — content-desc is empty; text-based identification
-    this.notificationDialogMessage = this.isAndroid
-      ? 'android=new UiSelector().resourceId("com.android.permissioncontroller:id/permission_message")'
-      : '~Allow DemoApp to send you notifications?';
 
     // "Allow" button — same resourceId as permissions generic allow
     this.allowNotificationBtn = this.isAndroid

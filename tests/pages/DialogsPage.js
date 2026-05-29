@@ -92,10 +92,6 @@ class DialogsPage extends BasePage {
       ? 'android=new UiSelector().description("Close")'
       : '~Close';
 
-    this.bottomSheetScrim = this.isAndroid
-      ? 'android=new UiSelector().description("Scrim")'
-      : '~Scrim';
-
     // ── Snackbar ──
     this.snackbarMessage = this.isAndroid
       ? 'android=new UiSelector().description("This is a snackbar message")'
@@ -241,10 +237,6 @@ class DialogsPage extends BasePage {
       ? 'android=new UiSelector().className("android.widget.Button").instance(0)'
       : '-ios predicate string:type == "XCUIElementTypeButton" AND visible == 1';
 
-    // ── Shared Dismiss Overlay ──
-    this.dismissOverlay = this.isAndroid
-      ? 'android=new UiSelector().description("Dismiss")'
-      : '~Dismiss';
   }
 
   /**
@@ -310,28 +302,6 @@ class DialogsPage extends BasePage {
     await this.driver.pause(200);
     await el.addValue(value);
     await this.driver.pause(200);
-  }
-
-  /**
-   * Dismiss any open dialog by clicking the Dismiss overlay.
-   */
-  async dismissDialog() {
-    const dismiss = await this.driver.$(this.dismissOverlay);
-    if (await dismiss.isExisting()) {
-      await dismiss.click();
-      await this.driver.pause(800);
-    }
-  }
-
-  /**
-   * Dismiss a Bottom Sheet by clicking the Scrim.
-   */
-  async dismissBottomSheet() {
-    const scrim = await this.driver.$(this.bottomSheetScrim);
-    if (await scrim.isExisting()) {
-      await scrim.click();
-      await this.driver.pause(800);
-    }
   }
 
   /**
